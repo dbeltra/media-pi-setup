@@ -13,6 +13,18 @@ RADARR_URL = os.getenv("RADARR_URL")
 JUSTWATCH_LIST_ID = os.getenv("JUSTWATCH_LIST_ID")
 RADARR_ROOT_FOLDER = "/movies"
 RADARR_QUALITY_PROFILE_ID = 1
+LOGFILE_PATH = os.getenv("LOGFILE_PATH")
+MAX_SIZE_MB = 5  # Rotate if bigger than 5 MB
+
+def rotate_log():
+    if os.path.exists(LOGFILE_PATH):
+        size = os.path.getsize(LOGFILE_PATH) / (1024 * 1024)
+        if size > MAX_SIZE_MB:
+            old_log = LOGFILE_PATH + ".old"
+            if os.path.exists(old_log):
+                os.remove(old_log)
+            os.rename(LOGFILE_PATH, old_log)
+
 
 
 def get_movies_justwatch():
@@ -104,6 +116,8 @@ def get_existing_tmdb_ids():
     return tmdb_ids
 
 if __name__ == "__main__":
+    rotate_log()
+
     movies = get_movies_justwatch()
     existing_tmdb_ids = get_existing_tmdb_ids()
 
