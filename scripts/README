@@ -1,0 +1,5 @@
+chmod +x /home/david/media-pi-setup/scripts/import_justwatch.py
+
+crontab -e
+
+0 */12 * * * /home/david/media-pi-setup/.venv/bin/python /home/david/media-pi-setup/scripts/import_justwatch.py >> /home/david/media-server-config/scripts/sync.log 2>&1
