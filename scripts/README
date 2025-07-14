@@ -1,5 +1,11 @@
+# Justwatch import script
+Import movies from a public list into Radarr
+
+#Setup
+## Give execution permissions to the script
 chmod +x /home/david/media-pi-setup/scripts/import_justwatch.py
 
+## Add it to crontab to run every 12 hours
 crontab -e
 
-0 */12 * * * /home/david/media-pi-setup/.venv/bin/python /home/david/media-pi-setup/scripts/import_justwatch.py >> /home/david/media-server-config/scripts/sync.log 2>&1
+0 */12 * * * /home/david/media-pi-setup/.venv/bin/python /home/david/media-pi-setup/scripts/import_justwatch.py >> /home/david/media-server-config/scripts/import_justwatch.log 2>&1
