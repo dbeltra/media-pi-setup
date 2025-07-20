@@ -1,7 +1,17 @@
 # Justwatch import script
 Import movies from a public list into Radarr
 
-#Setup
+# Setup
+## Create a virtualenv
+python3 -m venv /home/david/media-pi-setup/.venv
+
+## Install requirements
+. /home/david/media-pi-setup/.venv/bin/activate && pip install -r requirements.txt
+
+## Set up .venv variables
+cp .env.example .env
+vim .env
+
 ## Give execution permissions to the script
 chmod +x /home/david/media-pi-setup/scripts/import_justwatch.py
 
