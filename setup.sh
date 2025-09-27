@@ -72,8 +72,49 @@ setup_external_drive() {
     if mountpoint -q "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null; then
         local mounted_device=$(df "$EXTERNAL_DRIVE_MOUNT" | tail -1 | awk '{print $1}')
         local available_space=$(df -h "$EXTERNAL_DRIVE_MOUNT" | tail -1 | awk '{print $4}')
-        print_status "External drive already mounted: $mounted_device ($available_space available)"
-        return 0
+        local used_space=$(df -h "$EXTERNAL_DRIVE_MOUNT" | tail -1 | awk '{print $3}')
+        print_status "External drive already mounted: $mounted_device"
+        print_status "Space: $used_space used, $available_space available"
+        
+        echo ""
+        echo "Existing data found on drive:"
+        ls -la "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null | head -10
+        echo ""
+        echo "Options:"
+        echo "1) Use existing drive as-is (recommended)"
+        echo "2) Format drive (WARNING: Will erase all data)"
+        read -p "Choose option (1-2): " choice
+        
+        case $choice in
+            1)
+                # Set proper ownership for existing directories
+                sudo chown -R 1000:1000 "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null || true
+                print_status "Using existing drive, updated ownership"
+                return 0
+                ;;
+            2)
+                print_warning "This will PERMANENTLY DELETE all data on the drive"
+                read -p "Type 'DELETE ALL DATA' to confirm: " confirm
+                if [[ "$confirm" == "DELETE ALL DATA" ]]; then
+                    sudo umount "$EXTERNAL_DRIVE_MOUNT"
+                    print_info "Formatting $mounted_device..."
+                    sudo mkfs.ext4 -F "$mounted_device"
+                    sudo mount "$mounted_device" "$EXTERNAL_DRIVE_MOUNT"
+                    sudo chown -R 1000:1000 "$EXTERNAL_DRIVE_MOUNT"
+                    print_status "Drive formatted and remounted"
+                    return 0
+                else
+                    print_error "Confirmation not matched - using existing drive"
+                    sudo chown -R 1000:1000 "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null || true
+                    return 0
+                fi
+                ;;
+            *)
+                print_warning "Invalid choice - using existing drive"
+                sudo chown -R 1000:1000 "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null || true
+                return 0
+                ;;
+        esac
     fi
     
     echo "Please specify your external drive device (e.g., /dev/sda1, /dev/sdb1):"
@@ -192,6 +233,52 @@ setup_external_drive() {
             echo "Common filesystem types: ext4, ntfs, exfat, vfat"
             read -p "Enter filesystem type: " fs_type
         fi
+    else
+        print_info "Detected existing filesystem: $fs_type"
+        
+        # Try to mount temporarily to check for existing data
+        local temp_mount="/tmp/drive-check"
+        sudo mkdir -p "$temp_mount"
+        
+        if sudo mount -t "$fs_type" "$drive_device" "$temp_mount" 2>/dev/null; then
+            local file_count=$(sudo find "$temp_mount" -type f 2>/dev/null | wc -l)
+            local dir_count=$(sudo find "$temp_mount" -mindepth 1 -type d 2>/dev/null | wc -l)
+            
+            if [[ $file_count -gt 0 || $dir_count -gt 0 ]]; then
+                echo ""
+                print_warning "Existing data found on drive ($file_count files, $dir_count directories)"
+                echo "Sample contents:"
+                sudo ls -la "$temp_mount" 2>/dev/null | head -8
+                echo ""
+                echo "Options:"
+                echo "1) Use existing drive as-is"
+                echo "2) Format drive (WARNING: Will erase all data)"
+                read -p "Choose option (1-2): " choice
+                
+                case $choice in
+                    2)
+                        print_warning "This will PERMANENTLY DELETE all data on the drive"
+                        read -p "Type 'DELETE ALL DATA' to confirm: " confirm
+                        if [[ "$confirm" == "DELETE ALL DATA" ]]; then
+                            sudo umount "$temp_mount"
+                            print_info "Formatting $drive_device as ext4..."
+                            sudo mkfs.ext4 -F "$drive_device"
+                            fs_type="ext4"
+                            print_status "Drive formatted"
+                        else
+                            print_info "Keeping existing data"
+                        fi
+                        ;;
+                    *)
+                        print_info "Using existing drive with data"
+                        ;;
+                esac
+            fi
+            
+            sudo umount "$temp_mount" 2>/dev/null || true
+        fi
+        
+        sudo rmdir "$temp_mount" 2>/dev/null || true
     fi
     
     print_info "Using filesystem type: $fs_type"
