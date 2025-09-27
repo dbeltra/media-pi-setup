@@ -32,6 +32,10 @@ print_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+print_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
    print_error "This script should not be run as root"
@@ -110,6 +114,25 @@ setup_external_drive() {
     if [[ ! -b "$drive_device" ]]; then
         local base_device=$(echo "$drive_device" | sed 's/[0-9]*$//')
         print_warning "Partition $drive_device does not exist"
+        
+        # Check if base device has I/O errors
+        if ! sudo fdisk -l "$base_device" >/dev/null 2>&1; then
+            print_error "Cannot access $base_device - possible hardware issue"
+            echo "This could indicate:"
+            echo "  - Drive failure or corruption"
+            echo "  - Insufficient power supply"
+            echo "  - Bad USB cable or port"
+            echo "  - Drive needs repair"
+            echo ""
+            echo "Troubleshooting steps:"
+            echo "  1. Try a different USB port (preferably USB 3.0)"
+            echo "  2. Use a powered USB hub"
+            echo "  3. Try a different USB cable"
+            echo "  4. Test the drive on another computer"
+            echo "  5. Check: sudo dmesg | grep -i sda"
+            exit 1
+        fi
+        
         echo "Available partitions on $base_device:"
         lsblk "$base_device" 2>/dev/null || echo "No partitions found"
         echo ""

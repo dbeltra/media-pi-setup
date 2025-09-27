@@ -42,6 +42,19 @@ lsusb | grep -i "mass storage\|disk" || echo "No USB storage devices found"
 echo -e "\n${BLUE}Recent Drive Events (last 20 lines):${NC}"
 sudo dmesg | grep -i -E "(usb|sd[a-z]|error|fail)" | tail -20
 
+# Check for I/O errors specifically
+echo -e "\n${BLUE}I/O Error Check:${NC}"
+IO_ERRORS=$(sudo dmesg | grep -i "i/o error\|input/output error" | wc -l)
+if [[ $IO_ERRORS -gt 0 ]]; then
+    print_error "Found $IO_ERRORS I/O errors in system log"
+    echo "Recent I/O errors:"
+    sudo dmesg | grep -i "i/o error\|input/output error" | tail -5
+    echo ""
+    print_warning "This indicates hardware problems with the drive"
+else
+    print_status "No I/O errors detected"
+fi
+
 # Check current mounts
 echo -e "\n${BLUE}Current Mounts:${NC}"
 mount | grep -E "^/dev/(sd|nvme|mmcblk)" | column -t
