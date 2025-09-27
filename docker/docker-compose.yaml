@@ -1,3 +1,7 @@
+networks:
+  media-network:
+    driver: bridge
+
 services:
   # https://github.com/haugene/docker-transmission-openvpn
   transmission:
@@ -5,7 +9,7 @@ services:
     container_name: transmission
     restart: always
     ports:
-      - "0.0.0.0:9091:9091"
+      - '9091:9091'
     # https://haugene.github.io/docker-transmission-openvpn/config-options/
     environment:
       - OPENVPN_PROVIDER=NORDVPN
@@ -16,11 +20,17 @@ services:
       - WEBPROXY_ENABLED=false
       - LOCAL_NETWORK=192.168.0.0/16
       - TRANSMISSION_WEB_UI=flood-for-transmission
+      - TRANSMISSION_DOWNLOAD_DIR=/data/completed
+      - TRANSMISSION_INCOMPLETE_DIR=/data/incomplete
+      - TRANSMISSION_WATCH_DIR=/data/watch
     volumes:
-      - /media/downloads:/data
+      - /mnt/media-drive/media/downloads:/data
+      - /mnt/media-drive/media-server-config/transmission:/config
       - /etc/localtime:/etc/localtime:ro
     cap_add:
       - NET_ADMIN
+    networks:
+      - media-network
 
   # https://github.com/linuxserver/docker-radarr
   radarr:
@@ -28,15 +38,17 @@ services:
     container_name: radarr
     restart: always
     ports:
-      - "0.0.0.0:7878:7878"
+      - '7878:7878'
     environment:
       - PGID=1000
       - PUID=1000
       - TZ=Europe/Amsterdam
     volumes:
-      - ~/media-server-config/radarr:/config
-      - /media/movies:/movies
-      - /media/downloads/completed:/downloads
+      - /mnt/media-drive/media-server-config/radarr:/config
+      - /mnt/media-drive/media/movies:/movies
+      - /mnt/media-drive/media/downloads/completed:/downloads
+    networks:
+      - media-network
 
   # https://github.com/linuxserver/docker-sonarr
   sonarr:
@@ -44,16 +56,17 @@ services:
     container_name: sonarr
     restart: always
     ports:
-      - "0.0.0.0:8989:8989"
+      - '8989:8989'
     environment:
       - PGID=1000
       - PUID=1000
       - TZ=Europe/Amsterdam
     volumes:
-      - ~/media-server-config/sonarr:/config
-      - /media/tv:/tv
-      - /media/downloads/completed:/downloads
-
+      - /mnt/media-drive/media-server-config/sonarr:/config
+      - /mnt/media-drive/media/tv:/tv
+      - /mnt/media-drive/media/downloads/completed:/downloads
+    networks:
+      - media-network
 
   # https://github.com/linuxserver/docker-prowlarr
   prowlarr:
@@ -61,7 +74,7 @@ services:
     container_name: prowlarr
     restart: always
     ports:
-      - "0.0.0.0:9696:9696"
+      - '9696:9696'
     cap_add:
       - NET_ADMIN
     environment:
@@ -69,29 +82,10 @@ services:
       - PUID=1000
       - TZ=Europe/Amsterdam
     volumes:
-      - ~/media-server-config/prowlarr:/config
-      - /media/downloads/watch:/downloads
-
-  # https://github.com/dperson/samba
-  samba:
-    image: dperson/samba:latest
-    container_name: samba
-    restart: always
-    # NOTE: see https://github.com/dperson/samba#troubleshooting
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    ports:
-      - "139:139"
-      - "445:445"
-    environment:
-      - USERID=1000
-      - GROUPID=1000
-      - SHARE=Media;/media
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /media:/media
+      - /mnt/media-drive/media-server-config/prowlarr:/config
+      - /mnt/media-drive/media/downloads:/downloads
+    networks:
+      - media-network
 
   plex:
     image: linuxserver/plex:latest
@@ -101,9 +95,8 @@ services:
       - PUID=1000
       - PGID=1000
       - VERSION=docker
-      - PLEX_CLAIM=${PLEX_CLAIM}     # https://account.plex.tv/en/claim
+      - PLEX_CLAIM=${PLEX_CLAIM} # https://account.plex.tv/en/claim
     volumes:
-      - ~/media-server-config/plex:/config
-      - /media:/media    
+      - /mnt/media-drive/media-server-config/plex:/config
+      - /mnt/media-drive/media:/media
     restart: unless-stopped
-

@@ -118,22 +118,35 @@ def get_existing_tmdb_ids():
 if __name__ == "__main__":
     rotate_log()
 
-    movies = get_movies_justwatch()
-    existing_tmdb_ids = get_existing_tmdb_ids()
+    try:
+        movies = get_movies_justwatch()
+        existing_tmdb_ids = get_existing_tmdb_ids()
+        added_count = 0
 
-    for movie in movies:
-        tmdb_data = search_tmdb(movie["title"])
-        if not tmdb_data:
-            print(f"No TMDb match for: {movie['title']}")
-            continue
+        for movie in movies:
+            try:
+                tmdb_data = search_tmdb(movie["title"])
+                if not tmdb_data:
+                    print(f"No TMDb match for: {movie['title']}")
+                    continue
 
-        tmdb_id = tmdb_data["id"]
-        title = tmdb_data["original_title"]
+                tmdb_id = tmdb_data["id"]
+                title = tmdb_data["original_title"]
 
-
-        if tmdb_id in existing_tmdb_ids:
-            print(f"Already in Radarr: {movie['title']} (TMDb ID {tmdb_id})")
-            continue
+                if tmdb_id in existing_tmdb_ids:
+                    print(f"Already in Radarr: {movie['title']} (TMDb ID {tmdb_id})")
+                    continue
+                
+                add_movie_to_radarr(tmdb_id=tmdb_id, title=title)
+                print(f"Added {movie['title']} to Radarr")
+                added_count += 1
+                
+            except Exception as e:
+                print(f"Error processing {movie['title']}: {e}")
+                continue
         
-        add_movie_to_radarr(tmdb_id=tmdb_id, title=title)
-        print(f"Adding {movie['title']} to Radarr")
+        print(f"Script completed. Added {added_count} new movies to Radarr.")
+        
+    except Exception as e:
+        print(f"Script failed: {e}")
+        exit(1)
