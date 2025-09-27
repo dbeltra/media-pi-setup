@@ -51,11 +51,24 @@ check_docker_dir() {
     fi
 }
 
+# Function to run docker compose with fallback
+docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+    elif docker compose version &> /dev/null 2>&1; then
+        docker compose "$@"
+    else
+        print_error "Neither 'docker-compose' nor 'docker compose' is available"
+        print_error "Please install Docker Compose"
+        exit 1
+    fi
+}
+
 case "$1" in
     start)
         check_docker_dir
         print_info "Starting media server services..."
-        cd "$DOCKER_DIR" && docker-compose up -d
+        cd "$DOCKER_DIR" && docker_compose up -d
         if [[ $? -eq 0 ]]; then
             print_status "All services started"
             echo ""
@@ -73,36 +86,36 @@ case "$1" in
     stop)
         check_docker_dir
         print_info "Stopping media server services..."
-        cd "$DOCKER_DIR" && docker-compose down
+        cd "$DOCKER_DIR" && docker_compose down
         print_status "All services stopped"
         ;;
     restart)
         check_docker_dir
         print_info "Restarting media server services..."
-        cd "$DOCKER_DIR" && docker-compose restart
+        cd "$DOCKER_DIR" && docker_compose restart
         print_status "All services restarted"
         ;;
     status)
         check_docker_dir
         print_info "Service status:"
-        cd "$DOCKER_DIR" && docker-compose ps
+        cd "$DOCKER_DIR" && docker_compose ps
         ;;
     logs)
         check_docker_dir
         if [[ -n "$2" ]]; then
             print_info "Showing logs for $2..."
-            cd "$DOCKER_DIR" && docker-compose logs -f "$2"
+            cd "$DOCKER_DIR" && docker_compose logs -f "$2"
         else
             print_info "Showing logs for all services..."
-            cd "$DOCKER_DIR" && docker-compose logs -f
+            cd "$DOCKER_DIR" && docker_compose logs -f
         fi
         ;;
     update)
         check_docker_dir
         print_info "Pulling latest images..."
-        cd "$DOCKER_DIR" && docker-compose pull
+        cd "$DOCKER_DIR" && docker_compose pull
         print_info "Restarting services with new images..."
-        cd "$DOCKER_DIR" && docker-compose up -d
+        cd "$DOCKER_DIR" && docker_compose up -d
         print_status "Update completed"
         ;;
     cleanup)

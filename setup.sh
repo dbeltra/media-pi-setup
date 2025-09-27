@@ -445,14 +445,34 @@ if command -v docker &> /dev/null; then
     fi
 else
     print_error "Docker is not installed"
+    echo "Install Docker with: curl -fsSL https://get.docker.com | sh"
     exit 1
 fi
 
-if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
-    print_status "Docker Compose is available"
+if command -v docker-compose &> /dev/null; then
+    print_status "Docker Compose (standalone) is available"
+elif docker compose version &> /dev/null 2>&1; then
+    print_status "Docker Compose (plugin) is available"
 else
-    print_error "Docker Compose is not installed"
-    exit 1
+    print_warning "Docker Compose is not installed"
+    echo "Installing Docker Compose plugin..."
+    
+    # Try to install docker-compose-plugin
+    if command -v apt &> /dev/null; then
+        sudo apt update
+        sudo apt install -y docker-compose-plugin
+        if docker compose version &> /dev/null 2>&1; then
+            print_status "Docker Compose plugin installed successfully"
+        else
+            print_error "Failed to install Docker Compose plugin"
+            echo "Manual installation required. See: https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+    else
+        print_error "Cannot auto-install Docker Compose on this system"
+        echo "Please install Docker Compose manually: https://docs.docker.com/compose/install/"
+        exit 1
+    fi
 fi
 
 # Final instructions
