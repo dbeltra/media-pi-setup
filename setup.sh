@@ -106,19 +106,84 @@ setup_external_drive() {
         print_status "Created mount point: $EXTERNAL_DRIVE_MOUNT"
     fi
     
+    # Check if the partition exists
+    if [[ ! -b "$drive_device" ]]; then
+        local base_device=$(echo "$drive_device" | sed 's/[0-9]*$//')
+        print_warning "Partition $drive_device does not exist"
+        echo "Available partitions on $base_device:"
+        lsblk "$base_device" 2>/dev/null || echo "No partitions found"
+        echo ""
+        echo "Options:"
+        echo "1) Create and format a new partition"
+        echo "2) Specify a different existing partition"
+        read -p "Choose option (1-2): " choice
+        
+        case $choice in
+            1)
+                print_warning "This will create a new partition and format the drive"
+                echo "WARNING: This will erase all data on $base_device"
+                read -p "Are you sure? Type 'yes' to continue: " confirm
+                if [[ "$confirm" != "yes" ]]; then
+                    print_error "Aborted by user"
+                    exit 1
+                fi
+                
+                # Create partition table and partition
+                print_info "Creating partition on $base_device..."
+                sudo parted "$base_device" --script mklabel gpt
+                sudo parted "$base_device" --script mkpart primary ext4 0% 100%
+                
+                # Wait for partition to be recognized
+                sleep 3
+                sudo partprobe "$base_device"
+                
+                # Format as ext4
+                print_info "Formatting $drive_device as ext4..."
+                sudo mkfs.ext4 -F "$drive_device"
+                ;;
+            2)
+                echo "Available devices:"
+                lsblk -dpno NAME,SIZE,FSTYPE
+                read -p "Enter the partition device: " drive_device
+                if [[ ! -b "$drive_device" ]]; then
+                    print_error "Device $drive_device not found"
+                    exit 1
+                fi
+                ;;
+        esac
+    fi
+    
     # Get filesystem type
     local fs_type=$(lsblk -no FSTYPE "$drive_device" 2>/dev/null)
     if [[ -z "$fs_type" ]]; then
         print_warning "Could not detect filesystem type for $drive_device"
-        echo "Common types: ext4, ntfs, exfat"
-        read -p "Enter filesystem type: " fs_type
+        echo "The drive might not be formatted."
+        echo "Do you want to format it as ext4? (recommended for Raspberry Pi)"
+        read -p "Format as ext4? (yes/no): " format_choice
+        
+        if [[ "$format_choice" == "yes" ]]; then
+            print_info "Formatting $drive_device as ext4..."
+            sudo mkfs.ext4 -F "$drive_device"
+            fs_type="ext4"
+        else
+            echo "Common filesystem types: ext4, ntfs, exfat, vfat"
+            read -p "Enter filesystem type: " fs_type
+        fi
     fi
+    
+    print_info "Using filesystem type: $fs_type"
     
     # Mount the drive
     if sudo mount -t "$fs_type" "$drive_device" "$EXTERNAL_DRIVE_MOUNT"; then
-        print_status "Mounted $drive_device to $EXTERNAL_DRIVE_MOUNT"
+        print_status "Successfully mounted $drive_device to $EXTERNAL_DRIVE_MOUNT"
     else
         print_error "Failed to mount $drive_device"
+        print_info "Recent kernel messages:"
+        sudo dmesg | tail -5
+        print_info "You may need to:"
+        echo "  1. Check if the drive is properly connected"
+        echo "  2. Try a different filesystem type"
+        echo "  3. Format the drive first"
         exit 1
     fi
     
