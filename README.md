@@ -48,6 +48,13 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
    **Prowlarr** (http://localhost:9696):
 
    - Add indexers/trackers for content discovery
+   - Add Radarr application:
+     - Prowlarr Server: http://prowlarr:9696
+     - Radarr Server: http://radarr:7878
+     - API Key: (get from Radarr Settings → General)
+   - Add Sonarr application:
+     - Server: http://sonarr:8989
+     - API Key: (get from Sonarr Settings → General)
 
    **Radarr** (http://localhost:7878):
 
@@ -55,7 +62,10 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
    - Add root folder: `/movies`
    - Go to Settings → Download Clients
    - Add Transmission: Host=`transmission`, Port=`9091`
-   - Go to Settings → Indexers → Add Indexer → Prowlarr
+   - Add remote path mappings
+     - Host: `transmission``
+     - Remote path: `/data/completed`
+     - Local path: `downloads`
 
    **Sonarr** (http://localhost:8989):
 
@@ -63,7 +73,6 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
    - Add root folder: `/tv`
    - Go to Settings → Download Clients
    - Add Transmission: Host=`transmission`, Port=`9091`
-   - Go to Settings → Indexers → Add Indexer → Prowlarr
 
    **Plex** (http://localhost:32400/web):
 
@@ -141,44 +150,7 @@ Once running, access your services at:
 └── .venv/               # Python virtual environment
 ```
 
-## Configuration Checklist
-
-After starting the services, complete these configuration steps:
-
-### 1. Radarr Setup
-
-- [ ] Add root folder: `/movies`
-- [ ] Add download client: Transmission (`transmission:9091`)
-- [ ] Copy API key to `.env` file
-- [ ] Connect to Prowlarr for indexers
-
-### 2. Sonarr Setup
-
-- [ ] Add root folder: `/tv`
-- [ ] Add download client: Transmission (`transmission:9091`)
-- [ ] Connect to Prowlarr for indexers
-
-### 3. Prowlarr Setup
-
-- [ ] Add indexers/trackers
-- [ ] Test indexer connections
-
-### 4. Plex Setup
-
-- [ ] Add movie library: `/media/movies`
-- [ ] Add TV library: `/media/tv`
-- [ ] Scan libraries
-
-### 5. JustWatch Integration
-
-- [ ] Get TMDB API key
-- [ ] Create public JustWatch list
-- [ ] Add list ID to `.env`
-- [ ] Test with `./manage.sh test-justwatch`
-
 ## JustWatch Integration
-
-The setup automatically configures a cron job that runs every 12 hours to import movies from your JustWatch list into Radarr.
 
 ### Manual JustWatch Import
 
