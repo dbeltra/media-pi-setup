@@ -320,8 +320,15 @@ setup_external_drive() {
 # Setup external drive first
 setup_external_drive
 
+# Verify external drive is mounted before creating directories
+if ! mountpoint -q "$EXTERNAL_DRIVE_MOUNT" 2>/dev/null; then
+    print_error "External drive is not mounted at $EXTERNAL_DRIVE_MOUNT"
+    print_error "Please run the external drive setup first"
+    exit 1
+fi
+
 # Create media directories
-echo -e "\n${BLUE}Creating media directories...${NC}"
+echo -e "\n${BLUE}Creating media directories on external drive...${NC}"
 MEDIA_DIRS=(
     "$MEDIA_ROOT/downloads/completed"
     "$MEDIA_ROOT/downloads/incomplete" 
@@ -344,7 +351,16 @@ for dir in "${MEDIA_DIRS[@]}"; do
     else
         print_status "$dir already exists"
     fi
+    
+    # Verify the directory is actually on the external drive
+    if ! df "$dir" | grep -q "$EXTERNAL_DRIVE_MOUNT"; then
+        print_error "Directory $dir is not on the external drive!"
+        print_error "This means the external drive is not properly mounted"
+        exit 1
+    fi
 done
+
+print_status "All media directories created on external drive"
 
 # Create config directories
 echo -e "\n${BLUE}Creating config directories...${NC}"
