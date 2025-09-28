@@ -391,6 +391,14 @@ echo -e "\n${BLUE}Checking environment configuration...${NC}"
 if [[ ! -f "$SCRIPT_DIR/.env" ]]; then
     if [[ -f "$SCRIPT_DIR/.env.example" ]]; then
         cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+        
+        # Auto-configure Pi IP address
+        PI_IP=$(hostname -I | awk '{print $1}')
+        if [[ -n "$PI_IP" ]]; then
+            sed -i "s/\[PI_IP_ADDRESS\]/$PI_IP/g" "$SCRIPT_DIR/.env"
+            print_status "Auto-configured Radarr URL with Pi IP: $PI_IP"
+        fi
+        
         print_warning "Created .env from .env.example - please edit it with your API keys"
         print_warning "Required: TMDB_API_KEY, RADARR_API_KEY, JUSTWATCH_LIST_ID, OPENVPN_USERNAME, OPENVPN_PASSWORD"
     else

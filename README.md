@@ -44,9 +44,31 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
    ```
 
 5. **Configure your applications:**
-   - Set up indexers in Prowlarr
-   - Configure download client in Radarr/Sonarr (use `transmission:9091`)
-   - Add your media libraries in Plex
+
+   **Prowlarr** (http://localhost:9696):
+
+   - Add indexers/trackers for content discovery
+
+   **Radarr** (http://localhost:7878):
+
+   - Go to Settings → Media Management → Root Folders
+   - Add root folder: `/movies`
+   - Go to Settings → Download Clients
+   - Add Transmission: Host=`transmission`, Port=`9091`
+   - Go to Settings → Indexers → Add Indexer → Prowlarr
+
+   **Sonarr** (http://localhost:8989):
+
+   - Go to Settings → Media Management → Root Folders
+   - Add root folder: `/tv`
+   - Go to Settings → Download Clients
+   - Add Transmission: Host=`transmission`, Port=`9091`
+   - Go to Settings → Indexers → Add Indexer → Prowlarr
+
+   **Plex** (http://localhost:32400/web):
+
+   - Add Movie library: `/media/movies`
+   - Add TV library: `/media/tv`
 
 ## Management Commands
 
@@ -119,6 +141,41 @@ Once running, access your services at:
 └── .venv/               # Python virtual environment
 ```
 
+## Configuration Checklist
+
+After starting the services, complete these configuration steps:
+
+### 1. Radarr Setup
+
+- [ ] Add root folder: `/movies`
+- [ ] Add download client: Transmission (`transmission:9091`)
+- [ ] Copy API key to `.env` file
+- [ ] Connect to Prowlarr for indexers
+
+### 2. Sonarr Setup
+
+- [ ] Add root folder: `/tv`
+- [ ] Add download client: Transmission (`transmission:9091`)
+- [ ] Connect to Prowlarr for indexers
+
+### 3. Prowlarr Setup
+
+- [ ] Add indexers/trackers
+- [ ] Test indexer connections
+
+### 4. Plex Setup
+
+- [ ] Add movie library: `/media/movies`
+- [ ] Add TV library: `/media/tv`
+- [ ] Scan libraries
+
+### 5. JustWatch Integration
+
+- [ ] Get TMDB API key
+- [ ] Create public JustWatch list
+- [ ] Add list ID to `.env`
+- [ ] Test with `./manage.sh test-justwatch`
+
 ## JustWatch Integration
 
 The setup automatically configures a cron job that runs every 12 hours to import movies from your JustWatch list into Radarr.
@@ -155,6 +212,10 @@ The setup automatically configures a cron job that runs every 12 hours to import
 2. **Downloads not moving**: Verify folder permissions and paths
 3. **Services not accessible**: Check if ports are already in use
 4. **Plex not claiming**: Make sure PLEX_CLAIM token is valid (expires in 4 minutes)
+5. **JustWatch script fails with 401**: Get Radarr API key from Settings → General
+6. **No root folders in Radarr/Sonarr**: Add `/movies` and `/tv` in Media Management → Root Folders
+7. **External drive not mounted**: Run `./drive-manager.sh status` to check
+8. **Permission errors**: Run `sudo chown -R 1000:1000 /mnt/media-drive`
 
 ## Security Notes
 
