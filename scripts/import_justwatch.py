@@ -4,8 +4,11 @@ import requests
 from dotenv import load_dotenv
 import json
 import os
+from pathlib import Path
 
-load_dotenv()
+# Load .env from project root (parent directory of scripts/)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 RADARR_API_KEY = os.getenv("RADARR_API_KEY")

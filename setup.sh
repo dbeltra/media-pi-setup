@@ -401,6 +401,17 @@ else
     print_status ".env file exists"
 fi
 
+# Create symlink to .env in docker directory so docker-compose can find it
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    # Remove existing .env file or symlink in docker directory
+    rm -f "$SCRIPT_DIR/docker/.env"
+    
+    # Create symlink
+    ln -s "../.env" "$SCRIPT_DIR/docker/.env"
+    print_status "Created symlink to .env in docker directory"
+    print_info "Single .env file in root, accessible from both locations"
+fi
+
 # Setup Python virtual environment
 echo -e "\n${BLUE}Setting up Python environment...${NC}"
 if [[ ! -d "$VENV_PATH" ]]; then
@@ -496,7 +507,7 @@ echo -e "\n${GREEN}🎉 Setup completed successfully!${NC}"
 echo -e "\n${BLUE}Next steps:${NC}"
 echo "1. Edit .env file with your API keys and credentials"
 echo "2. Get your Plex claim token from: https://account.plex.tv/en/claim"
-echo "3. Start the services: cd docker && docker-compose up -d"
+echo "3. Start the services: cd docker && docker compose up -d"
 echo "4. Configure your services:"
 echo "   - Radarr: http://localhost:7878"
 echo "   - Sonarr: http://localhost:8989" 
