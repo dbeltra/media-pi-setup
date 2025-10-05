@@ -59,24 +59,22 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
    **Radarr** (http://localhost:7878):
 
    - Go to Settings → Media Management → Root Folders
-   - Add root folder: `/movies`
+   - Add root folder: `/data/movies`
    - Go to Settings → Download Clients
    - Add Transmission: Host=`transmission`, Port=`9091`
-   - Add remote path mappings
-     - Host: `transmission``
-     - Remote path: `/data/completed`
-     - Local path: `downloads`
+   - Remote path mappings are NOT needed (all containers share `/data`)
 
    **Sonarr** (http://localhost:8989):
 
    - Go to Settings → Media Management → Root Folders
-   - Add root folder: `/tv`
+   - Add root folder: `/data/tv`
    - Go to Settings → Download Clients
    - Add Transmission: Host=`transmission`, Port=`9091`
+   - Remote path mappings are NOT needed (all containers share `/data`)
 
    **Plex** (http://localhost:32400/web):
 
-   - Add Movie library: `/media/movies`
+   - Add Movie library: `/media/movies` (Plex sees `/mnt/media-drive/media` as `/media`)
    - Add TV library: `/media/tv`
 
 ## Management Commands
@@ -181,11 +179,11 @@ Once running, access your services at:
 ### Common Issues
 
 1. **VPN not working**: Check your NordVPN credentials in `.env`
-2. **Downloads not moving**: Verify folder permissions and paths
+2. **Downloads not moving**: Verify folder permissions, enable Completed Download Handling in Radarr/Sonarr Settings → Download Clients
 3. **Services not accessible**: Check if ports are already in use
 4. **Plex not claiming**: Make sure PLEX_CLAIM token is valid (expires in 4 minutes)
 5. **JustWatch script fails with 401**: Get Radarr API key from Settings → General
-6. **No root folders in Radarr/Sonarr**: Add `/movies` and `/tv` in Media Management → Root Folders
+6. **No root folders in Radarr/Sonarr**: Add `/data/movies` and `/data/tv` in Media Management → Root Folders
 7. **External drive not mounted**: Run `./drive-manager.sh status` to check
 8. **Permission errors**: Run `sudo chown -R 1000:1000 /mnt/media-drive`
 

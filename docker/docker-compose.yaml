@@ -20,11 +20,11 @@ services:
       - WEBPROXY_ENABLED=false
       - LOCAL_NETWORK=192.168.0.0/16
       - TRANSMISSION_WEB_UI=flood-for-transmission
-      - TRANSMISSION_DOWNLOAD_DIR=/data/completed
-      - TRANSMISSION_INCOMPLETE_DIR=/data/incomplete
-      - TRANSMISSION_WATCH_DIR=/data/watch
+      - TRANSMISSION_DOWNLOAD_DIR=/data/downloads/completed
+      - TRANSMISSION_INCOMPLETE_DIR=/data/downloads/incomplete
+      - TRANSMISSION_WATCH_DIR=/data/downloads/watch
     volumes:
-      - /mnt/media-drive/media/downloads:/data
+      - /mnt/media-drive/media:/data
       - /mnt/media-drive/media-server-config/transmission:/config
       - /etc/localtime:/etc/localtime:ro
     cap_add:
@@ -45,8 +45,7 @@ services:
       - TZ=Europe/Amsterdam
     volumes:
       - /mnt/media-drive/media-server-config/radarr:/config
-      - /mnt/media-drive/media/movies:/movies
-      - /mnt/media-drive/media/downloads/completed:/downloads
+      - /mnt/media-drive/media:/data
     networks:
       - media-network
 
@@ -63,8 +62,7 @@ services:
       - TZ=Europe/Amsterdam
     volumes:
       - /mnt/media-drive/media-server-config/sonarr:/config
-      - /mnt/media-drive/media/tv:/tv
-      - /mnt/media-drive/media/downloads/completed:/downloads
+      - /mnt/media-drive/media:/data
     networks:
       - media-network
 
@@ -83,7 +81,7 @@ services:
       - TZ=Europe/Amsterdam
     volumes:
       - /mnt/media-drive/media-server-config/prowlarr:/config
-      - /mnt/media-drive/media/downloads:/downloads
+      - /mnt/media-drive/media:/data
     networks:
       - media-network
 
