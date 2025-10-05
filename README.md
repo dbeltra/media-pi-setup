@@ -4,12 +4,12 @@ A complete Docker-based media server setup with Radarr, Sonarr, Prowlarr, Transm
 
 ## Features
 
-- **Radarr** - Movie collection management
-- **Sonarr** - TV show collection management
-- **Prowlarr** - Indexer management
-- **Transmission** - Download client with VPN protection
-- **Plex** - Media streaming server
-- **JustWatch Integration** - Automatically import movies from your JustWatch lists
+- **Radarr** - (https://radarr.video/) Movie collection management
+- **Sonarr** - (https://sonarr.tv/) TV show collection management
+- **Prowlarr** - (https://prowlarr.com/) Indexer management
+- **Transmission** - (https://transmissionbt.com/) Download client with VPN protection
+- **Plex** - (https://www.plex.tv/) Media streaming server
+- **JustWatch Integration** - (https://justwatch.com/) Automatically import movies from your JustWatch lists
 
 ## Quick Start
 
