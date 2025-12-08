@@ -115,7 +115,11 @@ def add_movie_to_radarr(tmdb_data):
     }
     
     r = requests.post(url, headers=headers, json=payload)
-    r.raise_for_status()
+    try:
+        r.raise_for_status()
+    except requests.exceptions.HTTPError:
+        print(f"Error response from Radarr: {r.text}")
+        raise
     print(f"Added: {movie_info['title']} (TMDb ID {tmdb_data['id']})")
 
 
