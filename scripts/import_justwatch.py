@@ -91,7 +91,7 @@ def search_tmdb(title):
         return data["results"][0]  # Take first hit
     return None
 
-def add_movie_to_radarr(tmdb_data):
+def add_movie_to_radarr(tmdb_data, root_folder):
     """Add a movie to Radarr using TMDb lookup endpoint"""
     url = f"{RADARR_URL}/api/v3/movie"
     headers = {"X-Api-Key": RADARR_API_KEY}
@@ -107,7 +107,7 @@ def add_movie_to_radarr(tmdb_data):
     payload = {
         **movie_info,
         "qualityProfileId": RADARR_QUALITY_PROFILE_ID,
-        "rootFolderPath": RADARR_ROOT_FOLDER,
+        "rootFolderPath": root_folder,
         "monitored": True,
         "addOptions": {
             "searchForMovie": True
@@ -132,12 +132,25 @@ def get_existing_tmdb_ids():
     tmdb_ids = [m["tmdbId"] for m in data]
     return tmdb_ids
 
+def get_radarr_root_folder():
+    """Get the first available root folder from Radarr"""
+    url = f"{RADARR_URL}/api/v3/rootfolder"
+    headers = {"X-Api-Key": RADARR_API_KEY}
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    folders = r.json()
+    if folders:
+        return folders[0]["path"]
+    return RADARR_ROOT_FOLDER
+
 if __name__ == "__main__":
     rotate_log()
 
     try:
         movies = get_movies_justwatch()
         existing_tmdb_ids = get_existing_tmdb_ids()
+        root_folder = get_radarr_root_folder()
+        print(f"Using Radarr root folder: {root_folder}")
         added_count = 0
 
         for movie in movies:
@@ -154,7 +167,7 @@ if __name__ == "__main__":
                     print(f"Already in Radarr: {movie['title']} (TMDb ID {tmdb_id})")
                     continue
                 
-                add_movie_to_radarr(tmdb_data)
+                add_movie_to_radarr(tmdb_data, root_folder)
                 added_count += 1
                 
             except Exception as e:
