@@ -91,22 +91,32 @@ def search_tmdb(title):
         return data["results"][0]  # Take first hit
     return None
 
-def add_movie_to_radarr(tmdb_id, title):
+def add_movie_to_radarr(tmdb_data):
+    """Add a movie to Radarr using TMDb lookup endpoint"""
     url = f"{RADARR_URL}/api/v3/movie"
     headers = {"X-Api-Key": RADARR_API_KEY}
+    
+    # First, lookup the movie in Radarr to get full metadata
+    lookup_url = f"{RADARR_URL}/api/v3/movie/lookup/tmdb"
+    params = {"tmdbId": tmdb_data["id"]}
+    r = requests.get(lookup_url, headers=headers, params=params)
+    r.raise_for_status()
+    movie_info = r.json()
+    
+    # Now add the movie with complete metadata
     payload = {
-        "tmdbId": tmdb_id,
-        "qualityProfileId": RADARR_QUALITY_PROFILE_ID,  
-        "title": title,
+        **movie_info,
+        "qualityProfileId": RADARR_QUALITY_PROFILE_ID,
         "rootFolderPath": RADARR_ROOT_FOLDER,
         "monitored": True,
         "addOptions": {
             "searchForMovie": True
         }
     }
+    
     r = requests.post(url, headers=headers, json=payload)
     r.raise_for_status()
-    print(f"Added: {title} (TMDb ID {tmdb_id})")
+    print(f"Added: {movie_info['title']} (TMDb ID {tmdb_data['id']})")
 
 
 def get_existing_tmdb_ids():
@@ -140,8 +150,7 @@ if __name__ == "__main__":
                     print(f"Already in Radarr: {movie['title']} (TMDb ID {tmdb_id})")
                     continue
                 
-                add_movie_to_radarr(tmdb_id=tmdb_id, title=title)
-                print(f"Added {movie['title']} to Radarr")
+                add_movie_to_radarr(tmdb_data)
                 added_count += 1
                 
             except Exception as e:
