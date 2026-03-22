@@ -1,100 +1,129 @@
-networks:
-  media-network:
-    driver: bridge
-
 services:
-  # https://github.com/haugene/docker-transmission-openvpn
-  transmission:
-    image: haugene/transmission-openvpn:latest
-    container_name: transmission
-    restart: always
-    ports:
-      - '9091:9091'
-    # https://haugene.github.io/docker-transmission-openvpn/config-options/
-    environment:
-      - OPENVPN_PROVIDER=NORDVPN
-      - OPENVPN_COUNTRY=ES
-      - OPENVPN_CATEGORY=legacy_p2p
-      - OPENVPN_USERNAME=${OPENVPN_USERNAME}
-      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
-      - WEBPROXY_ENABLED=false
-      - LOCAL_NETWORK=192.168.0.0/16
-      - TRANSMISSION_WEB_UI=flood-for-transmission
-      - TRANSMISSION_DOWNLOAD_DIR=/data/downloads/completed
-      - TRANSMISSION_INCOMPLETE_DIR=/data/downloads/incomplete
-      - TRANSMISSION_WATCH_DIR=/data/downloads/watch
-    volumes:
-      - /mnt/media-drive/media:/data
-      - /mnt/media-drive/media-server-config/transmission:/config
-      - /etc/localtime:/etc/localtime:ro
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
     cap_add:
       - NET_ADMIN
-    networks:
-      - media-network
-
-  # https://github.com/linuxserver/docker-radarr
-  radarr:
-    image: linuxserver/radarr:latest
-    container_name: radarr
-    restart: always
-    ports:
-      - '7878:7878'
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
-      - PGID=1000
-      - PUID=1000
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /mnt/media-drive/media-server-config/radarr:/config
-      - /mnt/media-drive/media:/data
-    networks:
-      - media-network
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${NORDVPN_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=10.5.0.2/32
+      - SERVER_CATEGORIES=P2P
+      - FIREWALL_INPUT_PORTS=6881
+    ports:
+      - 8080:8000
+      - 8081:8081
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
 
-  # https://github.com/linuxserver/docker-sonarr
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - WEBUI_PORT=8081
+    volumes:
+      - ./config/qbittorrent:/config
+      - /mnt/media/downloads:/data/downloads
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/jellyfin:/config
+      - /mnt/media/movies:/data/movies
+      - /mnt/media/tv:/data/tv
+    ports:
+      - 8096:8096
+    restart: unless-stopped
+
   sonarr:
-    image: linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
-    restart: always
-    ports:
-      - '8989:8989'
     environment:
-      - PGID=1000
       - PUID=1000
-      - TZ=Europe/Amsterdam
+      - PGID=1000
+      - TZ=Europe/Madrid
     volumes:
-      - /mnt/media-drive/media-server-config/sonarr:/config
-      - /mnt/media-drive/media:/data
-    networks:
-      - media-network
+      - ./config/sonarr:/config
+      - /mnt/media:/data
+    ports:
+      - 8989:8989
+    restart: unless-stopped
 
-  # https://github.com/linuxserver/docker-prowlarr
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/radarr:/config
+      - /mnt/media:/data
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
   prowlarr:
-    image: linuxserver/prowlarr:develop
+    image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
-    restart: always
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/prowlarr:/config
     ports:
-      - '9696:9696'
-    cap_add:
-      - NET_ADMIN
-    environment:
-      - PGID=1000
-      - PUID=1000
-      - TZ=Europe/Amsterdam
-    volumes:
-      - /mnt/media-drive/media-server-config/prowlarr:/config
-      - /mnt/media-drive/media:/data
-    networks:
-      - media-network
+      - 9696:9696
+    restart: unless-stopped
 
-  plex:
-    image: linuxserver/plex:latest
-    container_name: plex
-    network_mode: host
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
     environment:
       - PUID=1000
       - PGID=1000
-      - VERSION=docker
-      - PLEX_CLAIM=${PLEX_CLAIM} # https://account.plex.tv/en/claim
+      - TZ=Europe/Madrid
     volumes:
-      - /mnt/media-drive/media-server-config/plex:/config
-      - /mnt/media-drive/media:/media
+      - ./config/bazarr:/config
+      - /mnt/media:/data
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
+      - WATCHTOWER_CLEANUP=true
+    restart: unless-stopped
+
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    container_name: seerr
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/jellyseerr:/app/config
+    ports:
+      - 5055:5055
     restart: unless-stopped
