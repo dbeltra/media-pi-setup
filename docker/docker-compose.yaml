@@ -11,7 +11,7 @@ services:
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${NORDVPN_PRIVATE_KEY}
       - WIREGUARD_ADDRESSES=10.5.0.2/32
-      - SERVER_CATEGORIES=P2P
+      - SERVER_HOSTNAMES=nl903.nordvpn.com
       - FIREWALL_INPUT_PORTS=6881
     ports:
       - 8080:8000

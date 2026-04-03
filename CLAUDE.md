@@ -57,7 +57,7 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 ```
 ~/mediaserver/
 ├── docker-compose.yml
-├── .env                  # Contains only NORDVPN_PRIVATE_KEY
+├── .env                  # Contains NORDVPN_PRIVATE_KEY + Mullvad backup keys
 └── config/
     ├── bazarr/
     ├── jellyfin/
@@ -90,7 +90,7 @@ Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
 
 ## Configuration Decisions
 
-**VPN**: NordVPN via gluetun using WireGuard + P2P servers. Only qBittorrent routes through VPN via `network_mode: service:gluetun`. All other services use normal network.
+**VPN**: NordVPN via gluetun using WireGuard, pinned to server `nl903.nordvpn.com`. Only qBittorrent routes through VPN via `network_mode: service:gluetun`. All other services use normal network. Gluetun's default server selection picks servers that don't pass traffic — always pin to a known-working hostname via `SERVER_HOSTNAMES`. A Mullvad VPN account exists as a backup (see `CLAUDE.local.md`).
 
 **Quality profiles (Radarr + Sonarr)**:
 - Custom format `Blocklist` (score -1000): blocks `x265`, `HEVC`, `10.?bit` — these require transcoding on most devices
@@ -108,12 +108,16 @@ Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
 
 ## Known Issues & Solutions
 
-- **Stalled downloads**: `docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent`
-- **VPN server throttling BitTorrent**: restart gluetun to switch to a fresh P2P server
+- **Stalled downloads**: `docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent`. Must recreate (not just restart) qbittorrent after gluetun recreate, since qbittorrent uses `network_mode: service:gluetun` and the network namespace reference breaks.
+- **All torrents in error state at 0%**: Check that qBittorrent's save path (`/data/downloads/`) matches the Docker volume mount. The config file is at `config/qbittorrent/qBittorrent/qBittorrent.conf` — look for `Session\DefaultSavePath` and `Downloads\SavePath`. Both must be `/data/downloads/`.
+- **VPN connected but no traffic (DNS timeouts in gluetun logs)**: Gluetun's server selection for NordVPN often picks dead servers. Pin to a known-working server via `SERVER_HOSTNAMES=nl903.nordvpn.com`. To find a new working server: install `nordvpn` CLI, run `nordvpn connect nl`, note the server name, then uninstall the CLI (it hijacks networking).
+- **qBittorrent queue not starting downloads**: Check `max_active_torrents` setting — error/stalled torrents count toward the limit. Current setting: 10. Use qBittorrent API from inside container: `docker exec qbittorrent curl -s "http://localhost:8081/api/v2/app/preferences"`
 - **qBittorrent "downloading metadata"**: usually DHT taking time, Force Reannounce helps. If persistent, restart gluetun
 - **Hardcoded subtitles (anime)**: avoid releases with `hardsub`, `subbed`, `ASS` in name. Look for clean WEB-DL releases
 - **Buffering on TV**: check Jellyfin Dashboard → Active Streams. If transcoding, force direct play. If direct playing, ensure TV uses local IP not Tailscale
 - **Pi 3B+ USB bus saturation**: ethernet and HDD share USB 2.0 bus. Limit qBittorrent download speed to 3-4 MB/s if buffering occurs during active downloads
+- **Tailscale DNS blocks external hostnames**: Tailscale sets `/etc/resolv.conf` to `100.100.100.100` with an immutable flag. Some external APIs (e.g. NordVPN) can't resolve. To temporarily fix: `sudo chattr -i /etc/resolv.conf` then add `nameserver 1.1.1.1`. Rebooting restores Tailscale DNS.
+- **NordVPN CLI hijacks networking**: Never leave the `nordvpn` package installed. It modifies routing tables and firewall rules, breaking SSH, Docker networking, and Tailscale. Install only to extract WireGuard keys, then immediately uninstall.
 
 ---
 

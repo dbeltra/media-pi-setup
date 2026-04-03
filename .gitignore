@@ -3,3 +3,5 @@ docker/.env
 /.venv
 .vscode
 CLAUDE.local.md
+MEMORY.local.md
+.DS_Store
