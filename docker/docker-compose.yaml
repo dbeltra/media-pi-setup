@@ -43,6 +43,8 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
+    devices:
+      - /dev/dri:/dev/dri
     volumes:
       - ./config/jellyfin:/config
       - /mnt/media/movies:/data/movies
@@ -104,16 +106,6 @@ services:
       - /mnt/media:/data
     ports:
       - 6767:6767
-    restart: unless-stopped
-
-  watchtower:
-    image: containrrr/watchtower
-    container_name: watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - WATCHTOWER_SCHEDULE=0 0 4 * * *
-      - WATCHTOWER_CLEANUP=true
     restart: unless-stopped
 
   seerr:

@@ -6,15 +6,17 @@ This file contains all the context needed to continue helping with this project.
 
 ## Setup Summary
 
-A self-hosted media server running on a **Raspberry Pi 3B+** with a 500GB external HDD. Everything runs in Docker. The full setup guide is in `media-server-setup.md`.
+A self-hosted media server running on a **Dell Latitude 5420** laptop with a 500GB external HDD. Everything runs in Docker. The hostname is kept as `raspberrypi` for migration simplicity.
 
 ---
 
 ## Hardware
 
-- **Device**: Raspberry Pi 3B+
-- **OS**: Raspberry Pi OS Lite 64-bit (Debian Bookworm)
+- **Device**: Dell Latitude 5420 (i7-1185G7 @ 3.0GHz, 4C/8T, 16GB RAM, Intel Iris Xe)
+- **OS**: Ubuntu 26.04 LTS (Resolute Raccoon)
+- **System disk**: 477GB NVMe (100GB LVM root partition)
 - **External HDD**: 500GB, mounted at `/mnt/media`, formatted ext4
+- **GPU**: Intel Iris Xe (Tiger Lake) — hardware transcoding via Quick Sync (`/dev/dri` passed to Jellyfin)
 - **ISP**: ~60 Mbps down / ~15 Mbps up (asymmetric — upload is the bottleneck for remote streaming)
 
 ---
@@ -31,7 +33,6 @@ A self-hosted media server running on a **Raspberry Pi 3B+** with a 500GB extern
 | qBittorrent | Torrent client (via NordVPN) | 8081 |
 | Gluetun | NordVPN WireGuard gateway | — |
 | Bazarr | Subtitle manager | 6767 |
-| Watchtower | Auto-updates containers at 4am daily | — |
 | Tailscale | Remote access with MagicDNS | — |
 
 ---
@@ -81,10 +82,11 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 ## Cron Jobs
 
 ```
+0 4 * * * cd $HOME/mediaserver && docker compose pull && docker compose up -d
 0 4 * * 0 cd $HOME/mediaserver && docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent
 ```
 
-Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
+Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
 
 ---
 
@@ -96,11 +98,11 @@ Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
 - Custom format `Blocklist` (score -1000): blocks `x265`, `HEVC`, `10.?bit` — these require transcoding on most devices
 - Custom format `Preferred` (score +500): prefers `x264`, `H\.264`
 - 4K and remux disabled entirely in Quality Definitions
-- Reason: Pi 3B+ cannot transcode, Google TV needs direct play
+- Note: the Dell has Intel QSV hardware transcoding, so the HEVC blocklist could be relaxed. Kept for now since Google TV direct play is still preferred
 
 **Subtitles**: Bazarr handles everything. Jellyfin's built-in subtitle download is disabled. OpenSubtitles plugin uninstalled. Bazarr downloads Spanish + English, uses audio track as sync reference.
 
-**Tailscale MagicDNS**: Enabled. Pi accessible as `raspberrypi` from all Tailscale devices.
+**Tailscale MagicDNS**: Enabled. Laptop accessible as `raspberrypi` from all Tailscale devices (hostname kept from Pi for compatibility).
 
 **TV playback**: Google TV uses Fladder app connected to local IP `192.168.1.47:8096` — NOT Tailscale, to avoid upload speed bottleneck (15 Mbps upload is not enough for reliable 1080p streaming via Tailscale).
 
@@ -114,8 +116,7 @@ Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
 - **qBittorrent queue not starting downloads**: Check `max_active_torrents` setting — error/stalled torrents count toward the limit. Current setting: 10. Use qBittorrent API from inside container: `docker exec qbittorrent curl -s "http://localhost:8081/api/v2/app/preferences"`
 - **qBittorrent "downloading metadata"**: usually DHT taking time, Force Reannounce helps. If persistent, restart gluetun
 - **Hardcoded subtitles (anime)**: avoid releases with `hardsub`, `subbed`, `ASS` in name. Look for clean WEB-DL releases
-- **Buffering on TV**: check Jellyfin Dashboard → Active Streams. If transcoding, force direct play. If direct playing, ensure TV uses local IP not Tailscale
-- **Pi 3B+ USB bus saturation**: ethernet and HDD share USB 2.0 bus. Limit qBittorrent download speed to 3-4 MB/s if buffering occurs during active downloads
+- **Buffering on TV**: check Jellyfin Dashboard → Active Streams. If transcoding, check that QSV is being used (should show "(HW)" in transcode info). If direct playing, ensure TV uses local IP not Tailscale
 - **Tailscale DNS blocks external hostnames**: Tailscale sets `/etc/resolv.conf` to `100.100.100.100` with an immutable flag. Some external APIs (e.g. NordVPN) can't resolve. To temporarily fix: `sudo chattr -i /etc/resolv.conf` then add `nameserver 1.1.1.1`. Rebooting restores Tailscale DNS.
 - **NordVPN CLI hijacks networking**: Never leave the `nordvpn` package installed. It modifies routing tables and firewall rules, breaking SSH, Docker networking, and Tailscale. Install only to extract WireGuard keys, then immediately uninstall.
 
