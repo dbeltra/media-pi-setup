@@ -454,6 +454,78 @@ crontab -l
 
 ---
 
+## Step 14 — Custom Domain with HTTPS (Cloudflare + Caddy)
+
+Replace `http://raspberrypi:PORT` and `http://100.104.85.26:PORT` with pretty HTTPS URLs like `https://jellyfin.media.<yourdomain>`, while keeping access **Tailscale-only** (no public exposure).
+
+How it works:
+- Cloudflare DNS holds a wildcard A record pointing at your Tailscale IP. Only Tailscale-connected devices can route to that address.
+- A Caddy container on the laptop terminates HTTPS for each service.
+- Certificates are issued via the **DNS-01 challenge** against Cloudflare's API — the host doesn't need to be publicly reachable on port 80/443.
+
+### Cloudflare side
+
+1. **Wildcard A record** under a `media` subdomain of your existing zone:
+   - Type `A`, Name `*.media`, Content `YOUR_TAILSCALE_IP` (e.g. `100.104.85.26`), Proxy status **DNS only** (gray cloud), TTL Auto.
+2. **API token** (My Profile → API Tokens → Create Token → Custom):
+   - Permissions: `Zone → Zone → Read`, `Zone → DNS → Edit`
+   - Zone resources: Include → Specific zone → your domain
+   - Save the token — Caddy uses it for the DNS-01 challenge.
+
+### Caddy container
+
+The repo ships with `caddy/Dockerfile` (Caddy + Cloudflare DNS plugin via `xcaddy`) and `caddy/Caddyfile` (one site block per service, with hostnames templated via `{$DOMAIN}`).
+
+Add to `~/mediaserver/.env`:
+```
+CLOUDFLARE_API_TOKEN=YOUR_TOKEN
+DOMAIN=yourdomain.com
+ACME_EMAIL=you@yourdomain.com
+```
+
+Bring it up:
+```bash
+cd ~/mediaserver
+docker compose --env-file .env up -d --build caddy
+docker logs -f caddy   # watch first-run ACME issuance
+```
+
+You should see `obtained certificate` for each hostname. After that:
+- `https://jellyfin.media.yourdomain.com`
+- `https://seerr.media.yourdomain.com`
+- `https://sonarr.media.yourdomain.com`
+- `https://radarr.media.yourdomain.com`
+- `https://prowlarr.media.yourdomain.com`
+- `https://bazarr.media.yourdomain.com`
+- `https://qbittorrent.media.yourdomain.com`
+
+> qBittorrent is reverse-proxied to `gluetun:8081`, not `qbittorrent:8081`, because qBittorrent shares gluetun's network namespace (`network_mode: service:gluetun`).
+
+### Service-specific settings
+
+Without these, services either reject the proxied request or log the wrong client IP.
+
+- **Jellyfin** — Dashboard → Networking:
+  - Add the Caddy container's bridge IP (find with `docker inspect caddy | grep IPAddress`) to **Known proxies**.
+  - Add `https://jellyfin.media.yourdomain.com` to **Published server URLs**.
+- **qBittorrent** — Tools → Options → Web UI:
+  - Tick **Enable reverse proxy support** and add Caddy's bridge IP to **Trusted proxies**.
+  - In **Server domains**, add `qbittorrent.media.yourdomain.com` (or `*`) — otherwise its DNS-rebinding-protection returns `401 Unauthorized`.
+- **Sonarr / Radarr / Prowlarr / Bazarr** — no URL base needed (each gets its own hostname). Optionally turn off their own SSL setting since Caddy already handles TLS.
+- **Seerr** — works out of the box; optionally set the external URL under Settings → General.
+
+### Verification
+
+From a Tailscale-connected device:
+```bash
+dig +short jellyfin.media.yourdomain.com   # → YOUR_TAILSCALE_IP
+```
+Open `https://jellyfin.media.yourdomain.com` — padlock should be valid, cert issuer **Let's Encrypt**.
+
+From a non-Tailscale device (e.g. phone on cellular with Tailscale off): the hostname resolves but the connection times out — confirms no public exposure.
+
+---
+
 ## Directory Structure
 
 ```
@@ -477,6 +549,8 @@ crontab -l
 ├── movies/
 └── tv/
 ```
+
+The repo also contains a `caddy/` folder (Dockerfile + Caddyfile) used by the optional Step 14 reverse proxy.
 
 Keeping downloads on the NVMe means the HDD only spins up for completed-file moves and playback, reducing wear and I/O contention.
 

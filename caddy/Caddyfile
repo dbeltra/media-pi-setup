@@ -1,0 +1,32 @@
+{
+    email {$ACME_EMAIL}
+    acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+}
+
+jellyfin.media.{$DOMAIN} {
+    reverse_proxy jellyfin:8096
+}
+
+seerr.media.{$DOMAIN} {
+    reverse_proxy seerr:5055
+}
+
+sonarr.media.{$DOMAIN} {
+    reverse_proxy sonarr:8989
+}
+
+radarr.media.{$DOMAIN} {
+    reverse_proxy radarr:7878
+}
+
+prowlarr.media.{$DOMAIN} {
+    reverse_proxy prowlarr:9696
+}
+
+bazarr.media.{$DOMAIN} {
+    reverse_proxy bazarr:6767
+}
+
+qbittorrent.media.{$DOMAIN} {
+    reverse_proxy gluetun:8081
+}

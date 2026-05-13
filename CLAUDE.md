@@ -102,6 +102,8 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 
 **Tailscale MagicDNS**: Enabled. Laptop accessible as `raspberrypi` from all Tailscale devices (hostname kept from Pi for compatibility).
 
+**Reverse proxy**: Caddy container fronts every service with HTTPS at `https://<service>.media.<DOMAIN>`. Certs are issued via Let's Encrypt **DNS-01** against Cloudflare (host has no public 443 — only Tailscale routes to it). Cloudflare DNS holds a single wildcard `*.media.<DOMAIN> → <tailscale-ip>` (DNS-only, gray cloud). Caddyfile and Dockerfile live under `caddy/` in the repo; `qbittorrent.*` proxies to `gluetun:8081` because qBittorrent shares gluetun's netns. Per-service quirks: Jellyfin needs Caddy's bridge IP in *Known Proxies*; qBittorrent needs its hostname added to *Server domains* or its DNS-rebinding-protection blocks the request.
+
 **TV playback**: Google TV uses Fladder app connected to local IP `192.168.1.47:8096` — NOT Tailscale, to avoid upload speed bottleneck (15 Mbps upload is not enough for reliable 1080p streaming via Tailscale).
 
 ---
