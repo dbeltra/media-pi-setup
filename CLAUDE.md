@@ -69,12 +69,11 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
     ├── qbittorrent/
     └── gluetun/
 
-/mnt/media/
+/srv/downloads/           # NVMe — active torrent downloads (avoids HDD I/O contention)
+
+/mnt/media/               # External HDD — media library
 ├── movies/
-├── tv/
-└── downloads/
-    ├── completed/
-    └: incomplete/
+└── tv/
 ```
 
 ---
@@ -95,10 +94,9 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 **VPN**: NordVPN via gluetun using WireGuard, pinned to server `nl903.nordvpn.com`. Only qBittorrent routes through VPN via `network_mode: service:gluetun`. All other services use normal network. Gluetun's default server selection picks servers that don't pass traffic — always pin to a known-working hostname via `SERVER_HOSTNAMES`. A Mullvad VPN account exists as a backup (see `CLAUDE.local.md`).
 
 **Quality profiles (Radarr + Sonarr)**:
-- Custom format `Blocklist` (score -1000): blocks `x265`, `HEVC`, `10.?bit` — these require transcoding on most devices
-- Custom format `Preferred` (score +500): prefers `x264`, `H\.264`
+- Custom format `Blocklist` (score 0): contains `x265`, `HEVC`, `10.?bit` — no longer penalized since Dell has QSV HW transcoding
+- Custom format `Preferred` (score +500): prefers `x264`, `H\.264` — still preferred for Google TV direct play
 - 4K and remux disabled entirely in Quality Definitions
-- Note: the Dell has Intel QSV hardware transcoding, so the HEVC blocklist could be relaxed. Kept for now since Google TV direct play is still preferred
 
 **Subtitles**: Bazarr handles everything. Jellyfin's built-in subtitle download is disabled. OpenSubtitles plugin uninstalled. Bazarr downloads Spanish + English, uses audio track as sync reference.
 
