@@ -165,6 +165,13 @@ NORDVPN_PRIVATE_KEY=YOUR_WIREGUARD_PRIVATE_KEY
 
 Create `docker-compose.yaml`:
 ```yaml
+x-no-ipv6: &no-ipv6
+  # Host has no IPv6 default route. Without this, .NET HTTP clients
+  # (Radarr/Sonarr/Jellyfin) try AAAA addresses first and hang for the
+  # full timeout before falling back to IPv4.
+  - net.ipv6.conf.all.disable_ipv6=1
+  - net.ipv6.conf.default.disable_ipv6=1
+
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -218,6 +225,7 @@ services:
       - /mnt/media/tv:/data/tv
     ports:
       - 8096:8096
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   sonarr:
@@ -233,6 +241,7 @@ services:
       - /srv/downloads:/data/downloads
     ports:
       - 8989:8989
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   radarr:
@@ -242,12 +251,18 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
+    extra_hosts:
+      # If your ISP can't route Cloudflare prefix 188.114.0.0/22 (e.g. Telefonica
+      # España), DNS will return those IPs for api.radarr.video and Radarr will
+      # hang on TMDB lookups. Pin to a reachable 104.18.x anycast IP instead.
+      - "api.radarr.video:104.18.114.5"
     volumes:
       - ./config/radarr:/config
       - /mnt/media:/data
       - /srv/downloads:/data/downloads
     ports:
       - 7878:7878
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   prowlarr:
@@ -261,6 +276,7 @@ services:
       - ./config/prowlarr:/config
     ports:
       - 9696:9696
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   bazarr:
@@ -275,6 +291,7 @@ services:
       - /mnt/media:/data
     ports:
       - 6767:6767
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   seerr:
@@ -287,6 +304,7 @@ services:
       - ./config/jellyseerr:/app/config
     ports:
       - 5055:5055
+    sysctls: *no-ipv6
     restart: unless-stopped
 ```
 
@@ -618,6 +636,8 @@ With MagicDNS enabled, use the hostname from any Tailscale device. Use the local
 | Buffering on TV | Dashboard → Active Streams. If transcoding, confirm `(HW)` tag (QSV active). If direct playing, switch client to local IP |
 | Fladder can't connect | Make sure Tailscale is running if using hostname, or switch to local IP |
 | Tailscale broke external DNS | `sudo chattr -i /etc/resolv.conf` and add a public nameserver; reboot restores Tailscale DNS |
+| Seerr request fails, Radarr "timeout retrieving movie by TMDB ID" | Telefonica España can't route Cloudflare prefix `188.114.0.0/22`, which is what DNS returns for `api.radarr.video`. The compose pins `api.radarr.video` to a reachable Cloudflare anycast IP via `extra_hosts`. If Cloudflare ever rotates that IP, swap it for any other reachable `104.18.x.x` |
+| .NET-based service (Radarr/Sonarr/Jellyfin) hangs on external HTTP requests | Likely AAAA records being returned for hosts with no IPv6 connectivity. The compose already disables IPv6 in those containers via `sysctls`. If you add a new .NET service, attach `sysctls: *no-ipv6` (the YAML anchor defined at the top) |
 
 ---
 

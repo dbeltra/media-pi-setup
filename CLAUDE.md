@@ -119,6 +119,8 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 - **Buffering on TV**: check Jellyfin Dashboard → Active Streams. If transcoding, check that QSV is being used (should show "(HW)" in transcode info). If direct playing, ensure TV uses local IP not Tailscale
 - **Tailscale DNS blocks external hostnames**: Tailscale sets `/etc/resolv.conf` to `100.100.100.100` with an immutable flag. Some external APIs (e.g. NordVPN) can't resolve. To temporarily fix: `sudo chattr -i /etc/resolv.conf` then add `nameserver 1.1.1.1`. Rebooting restores Tailscale DNS.
 - **NordVPN CLI hijacks networking**: Never leave the `nordvpn` package installed. It modifies routing tables and firewall rules, breaking SSH, Docker networking, and Tailscale. Install only to extract WireGuard keys, then immediately uninstall.
+- **.NET services time out on external HTTP (Radarr / Sonarr / Jellyfin)**: Host has no IPv6 default route, but DNS returns AAAA records. .NET's `HttpClient` tries v6 first and waits for the full timeout. Compose disables IPv6 inside each .NET container via `sysctls: *no-ipv6` (anchor defined at the top of the compose file). If you add a new .NET service, attach the same anchor.
+- **Radarr "timeout retrieving movie by TMDB ID" / Seerr requests fail**: Telefonica España (and possibly other ISPs) can't route Cloudflare prefix `188.114.0.0/22`, which is what public DNS returns for `api.radarr.video`. The compose pins `api.radarr.video` to a reachable `104.18.x.x` Cloudflare anycast IP via `extra_hosts` on the radarr service. Swap to any other reachable 104.18.x.x if it ever stops working. Test directly with `docker exec radarr curl -4 --max-time 5 https://api.radarr.video/v1/movie/imdb/tt0111161`.
 
 ---
 

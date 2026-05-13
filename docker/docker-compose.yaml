@@ -1,3 +1,11 @@
+x-no-ipv6: &no-ipv6
+  # Host has no IPv6 default route. Without disabling IPv6 in the container,
+  # .NET HTTP clients (Radarr/Sonarr/etc.) try AAAA addresses first and hang
+  # for the full request timeout before falling back. Filtering at the kernel
+  # level makes getaddrinfo skip AAAA results entirely.
+  - net.ipv6.conf.all.disable_ipv6=1
+  - net.ipv6.conf.default.disable_ipv6=1
+
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -51,6 +59,7 @@ services:
       - /mnt/media/tv:/data/tv
     ports:
       - 8096:8096
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   sonarr:
@@ -66,6 +75,7 @@ services:
       - /srv/downloads:/data/downloads
     ports:
       - 8989:8989
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   radarr:
@@ -75,12 +85,18 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Madrid
+    extra_hosts:
+      # Telefonica España has a routing/peering issue with the Cloudflare
+      # prefix 188.114.0.0/22 that DNS returns for api.radarr.video. Pin to
+      # a reachable Cloudflare anycast IP (104.18.x.x range is long-lived).
+      - "api.radarr.video:104.18.114.5"
     volumes:
       - ./config/radarr:/config
       - /mnt/media:/data
       - /srv/downloads:/data/downloads
     ports:
       - 7878:7878
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   prowlarr:
@@ -94,6 +110,7 @@ services:
       - ./config/prowlarr:/config
     ports:
       - 9696:9696
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   bazarr:
@@ -108,6 +125,7 @@ services:
       - /mnt/media:/data
     ports:
       - 6767:6767
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   seerr:
@@ -120,6 +138,7 @@ services:
       - ./config/jellyseerr:/app/config
     ports:
       - 5055:5055
+    sysctls: *no-ipv6
     restart: unless-stopped
 
   caddy:
