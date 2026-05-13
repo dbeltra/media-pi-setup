@@ -31,7 +31,7 @@ services:
       - WEBUI_PORT=8081
     volumes:
       - ./config/qbittorrent:/config
-      - /mnt/media/downloads:/data/downloads
+      - /srv/downloads:/data/downloads
     depends_on:
       - gluetun
     restart: unless-stopped
@@ -63,6 +63,7 @@ services:
     volumes:
       - ./config/sonarr:/config
       - /mnt/media:/data
+      - /srv/downloads:/data/downloads
     ports:
       - 8989:8989
     restart: unless-stopped
@@ -77,6 +78,7 @@ services:
     volumes:
       - ./config/radarr:/config
       - /mnt/media:/data
+      - /srv/downloads:/data/downloads
     ports:
       - 7878:7878
     restart: unless-stopped
