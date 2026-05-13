@@ -426,7 +426,9 @@ Bazarr handles all subtitle management. Disable Jellyfin's built-in subtitle dow
 
 1. Go to https://login.tailscale.com/admin/dns
 2. Enable **MagicDNS**
-3. Add global nameserver `100.100.100.100`
+3. Under **Global nameservers**, add a real public resolver like `1.1.1.1` (and optionally `8.8.8.8`). Leave **Override local DNS** off.
+
+> ⚠️ Do **not** add `100.100.100.100` as a global nameserver — that is Tailscale's own resolver, and using it as its own upstream creates a forwarding loop that breaks resolution for every non-tailnet hostname (e.g. anything you add later via Cloudflare).
 
 All services are now reachable as `http://raspberrypi:PORT` from any Tailscale device.
 
@@ -505,14 +507,16 @@ You should see `obtained certificate` for each hostname. After that:
 
 Without these, services either reject the proxied request or log the wrong client IP.
 
+The Caddy container sits on the default Compose bridge network, typically `172.18.0.0/16`. Find its exact IP with `docker inspect caddy --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`.
+
 - **Jellyfin** — Dashboard → Networking:
-  - Add the Caddy container's bridge IP (find with `docker inspect caddy | grep IPAddress`) to **Known proxies**.
+  - Add the Caddy container's bridge IP to **Known proxies**.
   - Add `https://jellyfin.media.yourdomain.com` to **Published server URLs**.
 - **qBittorrent** — Tools → Options → Web UI:
-  - Tick **Enable reverse proxy support** and add Caddy's bridge IP to **Trusted proxies**.
+  - In **Trusted proxies list**, add `172.18.0.0/16` (the whole subnet — Caddy's IP can change on rebuild).
   - In **Server domains**, add `qbittorrent.media.yourdomain.com` (or `*`) — otherwise its DNS-rebinding-protection returns `401 Unauthorized`.
 - **Sonarr / Radarr / Prowlarr / Bazarr** — no URL base needed (each gets its own hostname). Optionally turn off their own SSL setting since Caddy already handles TLS.
-- **Seerr** — works out of the box; optionally set the external URL under Settings → General.
+- **Seerr** — works out of the box; optionally update the Jellyfin URL under Settings → Jellyfin to the new HTTPS hostname so shared links point to it.
 
 ### Verification
 
