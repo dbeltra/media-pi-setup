@@ -141,6 +141,23 @@ services:
     sysctls: *no-ipv6
     restart: unless-stopped
 
+  # Watched-media cleanup. Rules are configured through the web UI at :6246
+  # (connect Jellyfin/Sonarr/Radarr/Seerr in Settings, then build a Collection
+  # rule like "Jellyfin: last viewed > 7d ago AND last viewed not null" with
+  # "delete" handling and "remove from arr after delete" enabled).
+  maintainerr:
+    image: ghcr.io/maintainerr/maintainerr:latest
+    container_name: maintainerr
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/maintainerr:/opt/data
+    ports:
+      - 6246:6246
+    sysctls: *no-ipv6
+    restart: unless-stopped
+
   caddy:
     build: ../caddy
     container_name: caddy

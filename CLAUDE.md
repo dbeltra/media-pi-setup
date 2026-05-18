@@ -33,6 +33,7 @@ A self-hosted media server running on a **Dell Latitude 5420** laptop with a 500
 | qBittorrent | Torrent client (via NordVPN) | 8081 |
 | Gluetun | NordVPN WireGuard gateway | — |
 | Bazarr | Subtitle manager | 6767 |
+| Maintainerr | Watched-media cleanup (rule-based) | 6246 |
 | Tailscale | Remote access with MagicDNS | — |
 
 ---
@@ -49,6 +50,7 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 | Sonarr | `http://raspberrypi:8989` |
 | Prowlarr | `http://raspberrypi:9696` |
 | Bazarr | `http://raspberrypi:6767` |
+| Maintainerr | `http://raspberrypi:6246` |
 | qBittorrent | `http://raspberrypi:8081` |
 
 ---
@@ -67,7 +69,8 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
     ├── radarr/
     ├── prowlarr/
     ├── qbittorrent/
-    └── gluetun/
+    ├── gluetun/
+    └── maintainerr/       # SQLite DB + rule definitions (UI-managed)
 
 /srv/downloads/           # NVMe — active torrent downloads (avoids HDD I/O contention)
 
@@ -105,6 +108,13 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 **Reverse proxy**: Caddy container fronts every service with HTTPS at `https://<service>.media.<DOMAIN>`. Certs are issued via Let's Encrypt **DNS-01** against Cloudflare (host has no public 443 — only Tailscale routes to it). Cloudflare DNS holds a single wildcard `*.media.<DOMAIN> → <tailscale-ip>` (DNS-only, gray cloud). Caddyfile and Dockerfile live under `caddy/` in the repo; `qbittorrent.*` proxies to `gluetun:8081` because qBittorrent shares gluetun's netns. Per-service quirks: Jellyfin needs Caddy's bridge IP in *Known Proxies*; qBittorrent needs its hostname added to *Server domains* or its DNS-rebinding-protection blocks the request.
 
 **TV playback**: Google TV uses Fladder app connected to local IP `192.168.1.47:8096` — NOT Tailscale, to avoid upload speed bottleneck (15 Mbps upload is not enough for reliable 1080p streaming via Tailscale).
+
+**Watched-media cleanup (Maintainerr)**: Container at port 6246. Connects to Jellyfin/Sonarr/Radarr/Seerr (creds stored in `config/maintainerr/maintainerr.sqlite`, not env vars). A Jellyfin API key named `Maintainerr` exists in Jellyfin's `ApiKeys` table for this. Janitorr was tried first and rejected — its model is `age = max(import_date, last_watched_date)` with no "must have been watched" gate, so it would delete unwatched-but-old content. Maintainerr's rule engine has explicit `Jellyfin → isWatched` + `Jellyfin → lastViewedAt` predicates which can express "watched AND last viewed > 7 days ago" exactly. Two rule groups are configured (also via API — UI not needed unless you want to edit them):
+
+- **"Watched movies older than 7d"** — library Movies, dataType `movie`, arrAction `DELETE` (0), `listExclusions: true` (adds to Radarr import-list exclusion so Seerr can't silently re-pull). Rule: `Jellyfin.isWatched == true AND Jellyfin.lastViewedAt > 604800 seconds ago`.
+- **"Watched episodes older than 7d"** — library Shows, dataType `episode`, arrAction `DELETE` (0). Same rule. Sonarr's per-episode DELETE keeps the series monitored, so new episodes of ongoing shows still download.
+
+Two-stage schedule: the rule executor (cron `0 0-23/8 * * *` = every 8h) re-scans the library and adds matching items to the collection; the collection handler (cron `0 0-23/12 * * *` = every 12h) processes additions older than `deleteAfterDays` (set to 0) and emits the *arr delete. Total grace ≈ rule's 7d + up to ~12h collection-handler lag. The Maintainerr API enums needed if you script more rules: `Application.JELLYFIN=6`, `RulePossibility.EQUALS=2`/`BEFORE=5`, `RuleType.NUMBER='0'`/`BOOL='3'`, `ServarrAction.DELETE=0`. Prop IDs for Jellyfin: `isWatched=42`, `lastViewedAt=7`. POST bodies require `notifications: []` or the create silently fails with a NOT NULL constraint on `notification_rulegroup.notificationId`.
 
 ---
 

@@ -28,6 +28,7 @@ The Iris Xe GPU is used for Jellyfin hardware transcoding via Intel Quick Sync (
 | qBittorrent | Torrent client | 8081 |
 | Gluetun | NordVPN WireGuard gateway | — |
 | Bazarr | Subtitle manager | 6767 |
+| Maintainerr | Watched-media cleanup (rule-based) | 6246 |
 | Tailscale | Remote access with MagicDNS | — |
 
 Container auto-updates are handled by a cron job (no Watchtower).
@@ -306,6 +307,20 @@ services:
       - 5055:5055
     sysctls: *no-ipv6
     restart: unless-stopped
+
+  # Watched-media cleanup. See Step 15 for rule configuration.
+  maintainerr:
+    image: ghcr.io/maintainerr/maintainerr:latest
+    container_name: maintainerr
+    user: "1000:1000"
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/maintainerr:/opt/data
+    ports:
+      - 6246:6246
+    sysctls: *no-ipv6
+    restart: unless-stopped
 ```
 
 Start everything:
@@ -548,6 +563,135 @@ From a non-Tailscale device (e.g. phone on cellular with Tailscale off): the hos
 
 ---
 
+## Step 15 — Watched-Media Cleanup (Maintainerr)
+
+Self-hosted libraries fill up fast. Maintainerr deletes already-watched content (after a configurable grace period) by combining a Jellyfin rule engine with Sonarr/Radarr APIs for the actual file removal — and adds movies to Radarr's import-list exclusion list so Seerr can't silently re-pull them.
+
+### Why not Janitorr
+
+Janitorr looks simpler at first glance, but its deletion model is `age = max(import_date, last_watched_date)`. There's no "must have been watched" gate — anything sitting on disk longer than the threshold gets deleted whether you watched it or not. That makes it a generic age-based cleaner, not a watched-cleanup tool. Maintainerr's rule engine exposes `Jellyfin → isWatched` and `Jellyfin → lastViewedAt` as first-class predicates, which can express "watched AND last viewed > 7 days ago" exactly.
+
+### Create a Jellyfin API key for Maintainerr
+
+Jellyfin Dashboard → API Keys → **+** → name it `Maintainerr` → copy the key. (Or if you don't have admin web access handy, you can insert one directly: `sqlite3 ~/mediaserver/config/jellyfin/data/data/jellyfin.db "INSERT INTO ApiKeys (DateCreated, DateLastActivity, Name, AccessToken) VALUES (datetime('now'), '0001-01-01 00:00:00', 'Maintainerr', '<hex-key>');"` then `docker restart jellyfin`.)
+
+### Connect Maintainerr to your services
+
+Open `http://SERVER:6246` and walk the setup wizard, or POST settings via its REST API:
+
+```bash
+# Sonarr
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"serverName":"sonarr","url":"http://sonarr:8989","apiKey":"<SONARR_KEY>"}' \
+  http://localhost:6246/api/settings/sonarr
+
+# Radarr
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"serverName":"radarr","url":"http://radarr:7878","apiKey":"<RADARR_KEY>"}' \
+  http://localhost:6246/api/settings/radarr
+
+# Seerr
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"url":"http://seerr:5055","api_key":"<SEERR_KEY>"}' \
+  http://localhost:6246/api/settings/seerr
+```
+
+Jellyfin is configured under Settings → Jellyfin (URL `http://jellyfin:8096`, the API key from above).
+
+### Get the Jellyfin library IDs
+
+```bash
+curl -s http://localhost:6246/api/media-server/libraries | jq
+# → [{"id":"<MOVIES_ID>","title":"Movies","type":"movie"},
+#    {"id":"<SHOWS_ID>","title":"Shows","type":"show"}]
+```
+
+### Create the two rules via API
+
+Maintainerr's web UI works for this, but a scripted POST is faster and reproducible. The rule JSON references property IDs that Maintainerr exposes at `GET /api/rules/constants` — for Jellyfin (app `6`): `isWatched=42`, `lastViewedAt=7`. Operators: `EQUALS=2`, `BEFORE=5`. `ServarrAction.DELETE=0`. `RuleOperators.AND="0"`.
+
+**Movies rule** — delete watched movies, remove from Radarr, add to import exclusion list:
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{
+    "libraryId":"<MOVIES_ID>",
+    "name":"Watched movies older than 7d",
+    "description":"isWatched AND lastViewedAt > 7d ago",
+    "isActive":true,
+    "arrAction":0,
+    "useRules":true,
+    "listExclusions":true,
+    "forceSeerr":false,
+    "radarrSettingsId":1,
+    "dataType":"movie",
+    "notifications":[],
+    "collection":{
+      "visibleOnRecommended":false,
+      "visibleOnHome":false,
+      "deleteAfterDays":0,
+      "manualCollection":false,
+      "manualCollectionName":"",
+      "keepLogsForMonths":3
+    },
+    "rules":[
+      {"firstVal":[6,42],"action":2,"operator":null,"customVal":{"ruleTypeId":3,"value":"1"},"section":0},
+      {"firstVal":[6,7],"action":5,"operator":"0","customVal":{"ruleTypeId":0,"value":"604800"},"section":0}
+    ]
+  }' \
+  http://localhost:6246/api/rules
+```
+
+**TV episode rule** — delete individual watched episodes; series stays monitored so new episodes still download:
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{
+    "libraryId":"<SHOWS_ID>",
+    "name":"Watched episodes older than 7d",
+    "description":"isWatched AND lastViewedAt > 7d ago (per episode)",
+    "isActive":true,
+    "arrAction":0,
+    "useRules":true,
+    "listExclusions":false,
+    "forceSeerr":false,
+    "sonarrSettingsId":1,
+    "dataType":"episode",
+    "notifications":[],
+    "collection":{
+      "visibleOnRecommended":false,
+      "visibleOnHome":false,
+      "deleteAfterDays":0,
+      "manualCollection":false,
+      "manualCollectionName":"",
+      "keepLogsForMonths":3
+    },
+    "rules":[
+      {"firstVal":[6,42],"action":2,"operator":null,"customVal":{"ruleTypeId":3,"value":"1"},"section":0},
+      {"firstVal":[6,7],"action":5,"operator":"0","customVal":{"ruleTypeId":0,"value":"604800"},"section":0}
+    ]
+  }' \
+  http://localhost:6246/api/rules
+```
+
+> **Gotcha**: `POST /api/rules` returns `HTTP 201` but silently fails with `Rules - Action failed` if you omit `"notifications": []`. The hidden cause is `NOT NULL constraint failed: notification_rulegroup.notificationId`. Enable DEBUG logging via `POST /api/logs/settings` `{"level":"debug",...}` if you need to see the underlying error.
+
+### How deletion timing works
+
+Two cron schedules combine:
+
+- **Rule executor** runs every 8h (`0 0-23/8 * * *`) → scans Jellyfin, adds matching items to a collection.
+- **Collection handler** runs every 12h (`0 0-23/12 * * *`) → for items in the collection older than `deleteAfterDays` (set to `0` above), emits the *arr DELETE.
+
+So total grace ≈ rule's 7-day predicate + up to ~12h handler lag. Hit the play icon on a rule in the UI to trigger an immediate scan if you want to preview matches.
+
+### Opt out of cleanup
+
+- **Per-item** — favorite (heart) an item in Jellyfin; the `isWatched=true` test still matches but you can extend the rule to filter favorites if needed.
+- **Per-show / per-movie permanent keep** — tag the entry in Sonarr/Radarr and add a rule section that excludes that tag.
+
+---
+
 ## Directory Structure
 
 ```
@@ -562,7 +706,8 @@ From a non-Tailscale device (e.g. phone on cellular with Tailscale off): the hos
     ├── radarr/
     ├── prowlarr/
     ├── qbittorrent/
-    └── gluetun/
+    ├── gluetun/
+    └── maintainerr/       # SQLite DB + rule definitions (Step 15)
 
 /srv/downloads/           # NVMe — active torrent downloads
 └── incomplete/
@@ -590,6 +735,7 @@ With MagicDNS enabled, use the hostname from any Tailscale device. Use the local
 | Sonarr | `http://raspberrypi:8989` | `SERVER_IP:8989` |
 | Prowlarr | `http://raspberrypi:9696` | `SERVER_IP:9696` |
 | Bazarr | `http://raspberrypi:6767` | `SERVER_IP:6767` |
+| Maintainerr | `http://raspberrypi:6246` | `SERVER_IP:6246` |
 | qBittorrent | `http://raspberrypi:8081` | `SERVER_IP:8081` |
 
 > ⚠️ For TV/media players at home, use the **local IP**, not Tailscale. Tailscale streaming is bottlenecked by home upload speed (~15 Mbps), which is not enough for reliable 1080p playback.
