@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>raspberrypi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0e0e0f;
+  --surface: #18181b;
+  --surface2: #1f1f24;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8e8e6;
+  --muted: #5a5a5a;
+  --muted2: #888;
+  --accent: #c8f060;
+  --red: #f06060;
+  --amber: #f0a960;
+  --blue: #60b8f0;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 2.5rem 2rem 4rem;
+}
+
+header {
+  max-width: 1100px;
+  margin: 0 auto 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.header-left { display: flex; align-items: baseline; gap: 1rem; }
+
+.hostname { font-family: 'DM Mono', monospace; font-size: 0.95rem; color: var(--accent); }
+.hostname::before { content: '~/'; color: var(--muted); }
+
+.tagline { font-size: 0.75rem; color: var(--muted); font-weight: 300; letter-spacing: 0.04em; text-transform: uppercase; }
+
+.refresh-btn {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted2);
+  background: none; border: 0.5px solid var(--border2); border-radius: 6px;
+  padding: 0.35rem 0.75rem; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Service links ── */
+.services-bar {
+  max-width: 1100px;
+  margin: 0 auto 2.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.service-link {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted2);
+  text-decoration: none;
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.service-link:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+.service-link .dot-cat { color: var(--muted); margin-right: 3px; }
+
+/* ── Layout ── */
+.main { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 2rem; }
+
+.section-label {
+  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.section-link {
+  font-size: 0.6rem; color: var(--muted); text-decoration: none;
+  border: 0.5px solid var(--border); border-radius: 4px; padding: 0.15rem 0.5rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+.section-link:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Stat row ── */
+.stat-row {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1px; background: var(--border); border: 0.5px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+
+.stat { background: var(--surface); padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.stat-label { font-size: 0.7rem; color: var(--muted2); font-weight: 300; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-value { font-family: 'DM Mono', monospace; font-size: 1.35rem; font-weight: 500; color: var(--text); line-height: 1; }
+.stat-value.accent { color: var(--accent); }
+.stat-value.muted { color: var(--muted2); font-size: 1rem; }
+
+/* ── Tables ── */
+.downloads-table { width: 100%; border-collapse: collapse; border: 0.5px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.82rem; }
+.downloads-table thead tr { background: var(--surface); border-bottom: 0.5px solid var(--border2); }
+.downloads-table th { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0.6rem 1rem; text-align: left; font-weight: 400; }
+.downloads-table tbody tr { background: var(--surface); border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+.downloads-table tbody tr:last-child { border-bottom: none; }
+.downloads-table tbody tr:hover { background: var(--surface2); }
+.downloads-table td { padding: 0.65rem 1rem; color: var(--text); vertical-align: middle; }
+
+.torrent-name { max-width: 340px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; }
+
+.progress-bar { width: 80px; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+.progress-fill.stalled { background: var(--amber); }
+.progress-fill.error { background: var(--red); }
+
+.badge { display: inline-block; font-family: 'DM Mono', monospace; font-size: 0.6rem; padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.badge-green { background: rgba(200,240,96,0.12); color: var(--accent); }
+.badge-amber { background: rgba(240,169,96,0.12); color: var(--amber); }
+.badge-red   { background: rgba(240,96,96,0.12);  color: var(--red); }
+.badge-blue  { background: rgba(96,184,240,0.12); color: var(--blue); }
+.badge-gray  { background: var(--surface2); color: var(--muted2); }
+
+/* ── Streams ── */
+.streams-list { display: flex; flex-direction: column; gap: 6px; }
+.stream-item { background: var(--surface); border: 0.5px solid var(--border); border-radius: 8px; padding: 0.85rem 1.1rem; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 1rem; font-size: 0.82rem; }
+.stream-title { font-weight: 500; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-meta { font-size: 0.72rem; color: var(--muted2); }
+.stream-badges { display: flex; gap: 0.4rem; align-items: center; flex-shrink: 0; }
+
+/* ── Pi-hole bar ── */
+.pihole-bar { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; margin-top: 0.5rem; }
+.pihole-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+
+.empty { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--muted); padding: 1.5rem; background: var(--surface); border: 0.5px solid var(--border); border-radius: 10px; text-align: center; }
+
+footer { max-width: 1100px; margin: 3rem auto 0; font-size: 0.7rem; color: var(--muted); font-family: 'DM Mono', monospace; display: flex; justify-content: space-between; }
+.dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-right: 5px; animation: pulse 2.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="hostname">mediaserver</div>
+    <div class="tagline">Dell Latitude 5420 · Ubuntu 26.04</div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="loadAll()">↻ refresh</button>
+</header>
+
+<!-- Service links — populated from config.json by JS -->
+<div class="services-bar" id="services-bar"></div>
+
+<div class="main">
+
+  <div>
+    <div class="section-label">
+      <span>Network · Pi-hole</span>
+      <a class="section-link" id="pihole-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-label">queries today</div><div class="stat-value muted" id="ph-queries">—</div></div>
+      <div class="stat"><div class="stat-label">blocked</div><div class="stat-value muted" id="ph-blocked">—</div></div>
+      <div class="stat">
+        <div class="stat-label">block rate</div>
+        <div class="stat-value muted" id="ph-pct">—</div>
+        <div class="pihole-bar"><div class="pihole-fill" id="ph-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat"><div class="stat-label">domains on blocklist</div><div class="stat-value muted" id="ph-domains">—</div></div>
+      <div class="stat"><div class="stat-label">clients seen</div><div class="stat-value muted" id="ph-clients">—</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">
+      <span>Downloads · qBittorrent</span>
+      <a class="section-link" id="qbt-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div id="downloads-wrap"><div class="empty">loading…</div></div>
+  </div>
+
+  <div>
+    <div class="section-label">
+      <span>Now playing · Jellyfin</span>
+      <a class="section-link" id="jellyfin-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div id="streams-wrap"><div class="empty">loading…</div></div>
+  </div>
+
+  <div>
+    <div class="section-label">Library</div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-label">movies</div><div class="stat-value" id="lib-movies">—</div></div>
+      <div class="stat"><div class="stat-label">TV shows</div><div class="stat-value" id="lib-shows">—</div></div>
+      <div class="stat"><div class="stat-label">monitored shows</div><div class="stat-value" id="sonarr-monitored">—</div></div>
+      <div class="stat"><div class="stat-label">missing episodes</div><div class="stat-value" id="sonarr-missing">—</div></div>
+      <div class="stat"><div class="stat-label">missing movies</div><div class="stat-value" id="radarr-missing">—</div></div>
+      <div class="stat"><div class="stat-label">subtitles wanted</div><div class="stat-value" id="bazarr-wanted">—</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">
+      <span>Sonarr queue</span>
+      <a class="section-link" id="sonarr-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div id="sonarr-queue-wrap"><div class="empty">loading…</div></div>
+  </div>
+
+  <div>
+    <div class="section-label">
+      <span>Radarr queue</span>
+      <a class="section-link" id="radarr-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div id="radarr-queue-wrap"><div class="empty">loading…</div></div>
+  </div>
+
+  <div>
+    <div class="section-label">
+      <span>Indexers · Prowlarr</span>
+      <a class="section-link" id="prowlarr-link" href="#" target="_blank">open ↗</a>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-label">total indexers</div><div class="stat-value" id="pr-total">—</div></div>
+      <div class="stat"><div class="stat-label">enabled</div><div class="stat-value accent" id="pr-enabled">—</div></div>
+      <div class="stat"><div class="stat-label">healthy</div><div class="stat-value accent" id="pr-healthy">—</div></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div><span class="dot"></span>tailscale connected · raspberrypi</div>
+  <div id="last-updated">never refreshed</div>
+</footer>
+
+<script>
+let CFG = null;
+
+async function loadConfig() {
+  const r = await fetch('/config.json');
+  if (!r.ok) throw new Error('config.json not found — run generate-config.sh');
+  return r.json();
+}
+
+function fmt(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+function fmtBytes(b) {
+  if (b == null) return '—';
+  const u = ['B','KB','MB','GB','TB'];
+  let i = 0; while (b >= 1024 && i < u.length-1) { b /= 1024; i++; }
+  return b.toFixed(1) + ' ' + u[i];
+}
+function fmtSpeed(b) { return b > 0 ? fmtBytes(b) + '/s' : '0 B/s'; }
+function fmtEta(s) {
+  if (!s || s < 0 || s > 86400*30) return '∞';
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+function arrHeaders(key) { return { 'X-Api-Key': key, 'Accept': 'application/json' }; }
+
+function buildServiceLinks() {
+  const s = CFG.services;
+  const links = [
+    { label: 'jellyfin',     url: s.jellyfin.url },
+    { label: 'seerr',        url: s.seerr.url },
+    { label: 'sonarr',       url: s.sonarr.url },
+    { label: 'radarr',       url: s.radarr.url },
+    { label: 'prowlarr',     url: s.prowlarr.url },
+    { label: 'qbittorrent',  url: s.qbittorrent.url },
+    { label: 'bazarr',       url: s.bazarr.url },
+    { label: 'maintainerr',  url: s.maintainerr.url },
+    { label: 'pi-hole',      url: s.pihole.url + '/admin' },
+  ];
+  document.getElementById('services-bar').innerHTML = links.map(l =>
+    `<a class="service-link" href="${l.url}" target="_blank">${l.label} ↗</a>`
+  ).join('');
+
+  // also wire up the section "open" links
+  document.getElementById('pihole-link').href    = s.pihole.url + '/admin';
+  document.getElementById('qbt-link').href       = s.qbittorrent.url;
+  document.getElementById('jellyfin-link').href  = s.jellyfin.url;
+  document.getElementById('sonarr-link').href    = s.sonarr.url;
+  document.getElementById('radarr-link').href    = s.radarr.url;
+  document.getElementById('prowlarr-link').href  = s.prowlarr.url;
+}
+
+// ── Pi-hole — via /pihole-api/ reverse proxy on same origin ──────────
+async function loadPihole() {
+  try {
+    // authenticate
+    const authR = await fetch('/pihole-api/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: CFG.services.pihole.password ?? '' })
+    });
+    let headers = {};
+    if (authR.ok) {
+      const auth = await authR.json();
+      if (auth?.session?.sid) headers = { 'X-FTL-SID': auth.session.sid };
+    }
+    const r = await fetch('/pihole-api/api/stats/summary', { headers });
+    if (!r.ok) throw new Error('pihole stats ' + r.status);
+    const d = await r.json();
+    const pct = d.queries?.percent_blocked ?? 0;
+    document.getElementById('ph-queries').textContent = fmt(d.queries?.total);
+    document.getElementById('ph-blocked').textContent = fmt(d.queries?.blocked);
+    document.getElementById('ph-pct').textContent = pct.toFixed(1) + '%';
+    document.getElementById('ph-bar').style.width = Math.min(pct, 100) + '%';
+    document.getElementById('ph-domains').textContent = fmt(d.gravity?.domains_being_blocked);
+    document.getElementById('ph-clients').textContent = fmt(d.clients?.total);
+    ['ph-queries','ph-blocked','ph-pct','ph-domains','ph-clients'].forEach(id =>
+      document.getElementById(id).classList.remove('muted'));
+  } catch(e) { console.warn('pihole:', e); }
+}
+
+// ── qBittorrent — via /qbt-api/ reverse proxy on same origin ─────────
+async function loadQbt() {
+  const wrap = document.getElementById('downloads-wrap');
+  try {
+    // login first (cookie-based, same origin so cookies work)
+    await fetch('/qbt-api/api/v2/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'username=admin&password=' + encodeURIComponent(CFG.services.qbittorrent.password ?? ''),
+      credentials: 'include'
+    });
+
+    const r = await fetch('/qbt-api/api/v2/torrents/info', { credentials: 'include' });
+    if (!r.ok) throw new Error('qbt ' + r.status);
+    const torrents = await r.json();
+
+    const active = torrents.filter(t =>
+      !['pausedUP','stalledUP'].includes(t.state) || t.dlspeed > 0
+    );
+
+    if (!active.length) { wrap.innerHTML = '<div class="empty">no active downloads</div>'; return; }
+
+    const rows = active.map(t => {
+      const pct = (t.progress * 100).toFixed(1);
+      const stalled = t.state.includes('stalled') || t.state.includes('Stalled');
+      const errored = t.state.includes('error') || t.state.includes('Error') || t.state.includes('missing');
+      const fillClass = errored ? 'error' : stalled ? 'stalled' : '';
+      const stateBadge = errored
+        ? `<span class="badge badge-red">${t.state}</span>`
+        : stalled
+        ? `<span class="badge badge-amber">stalled</span>`
+        : t.dlspeed > 0
+        ? `<span class="badge badge-green">↓ ${fmtSpeed(t.dlspeed)}</span>`
+        : `<span class="badge badge-gray">${t.state}</span>`;
+      return `<tr>
+        <td><div class="torrent-name" title="${t.name}">${t.name}</div></td>
+        <td><span class="progress-bar"><span class="progress-fill ${fillClass}" style="width:${pct}%"></span></span>${pct}%</td>
+        <td>${stateBadge}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted2)">${fmtEta(t.eta)}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted2)">${fmtBytes(t.size)}</td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table class="downloads-table">
+      <thead><tr><th>name</th><th>progress</th><th>status</th><th>eta</th><th>size</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch(e) {
+    console.warn('qbt:', e);
+    wrap.innerHTML = '<div class="empty">could not reach qBittorrent</div>';
+  }
+}
+
+// ── Jellyfin ─────────────────────────────────────────────────────────
+async function loadJellyfin() {
+  const wrap = document.getElementById('streams-wrap');
+  try {
+    const { url, apiKey } = CFG.services.jellyfin;
+    const h = { 'X-Emby-Token': apiKey };
+
+    const [sr, mr, tr2] = await Promise.all([
+      fetch(`${url}/Sessions?ActiveWithinSeconds=120`, { headers: h }),
+      fetch(`${url}/Items?IncludeItemTypes=Movie&Recursive=true&Limit=0`, { headers: h }),
+      fetch(`${url}/Items?IncludeItemTypes=Series&Recursive=true&Limit=0`, { headers: h }),
+    ]);
+
+    const sessions = await sr.json();
+    const mj = await mr.json();
+    const tj = await tr2.json();
+
+    document.getElementById('lib-movies').textContent = fmt(mj.TotalRecordCount);
+    document.getElementById('lib-shows').textContent = fmt(tj.TotalRecordCount);
+
+    const playing = sessions.filter(s => s.NowPlayingItem);
+    if (!playing.length) {
+      wrap.innerHTML = '<div class="empty">nothing playing</div>';
+    } else {
+      wrap.innerHTML = '<div class="streams-list">' + playing.map(s => {
+        const item = s.NowPlayingItem;
+        const ps = s.PlayState;
+        const pct = ps?.PositionTicks && item?.RunTimeTicks
+          ? ((ps.PositionTicks / item.RunTimeTicks) * 100).toFixed(0) : 0;
+        const method = s.TranscodingInfo
+          ? (s.TranscodingInfo.IsVideoDirect ? 'direct play' : `transcode ${s.TranscodingInfo.VideoCodec ?? ''}`)
+          : 'direct play';
+        const methodBadge = method.startsWith('transcode')
+          ? `<span class="badge badge-amber">${method}</span>`
+          : `<span class="badge badge-green">direct play</span>`;
+        return `<div class="stream-item">
+          <div>
+            <div class="stream-title">${item.SeriesName ? item.SeriesName + ' — ' : ''}${item.Name}</div>
+            <div class="stream-meta">${s.UserName ?? ''} · ${s.Client ?? ''} · ${pct}%</div>
+          </div>
+          <div class="stream-badges">${methodBadge}</div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+  } catch(e) {
+    console.warn('jellyfin:', e);
+    wrap.innerHTML = '<div class="empty">could not reach Jellyfin</div>';
+  }
+}
+
+// ── Sonarr ───────────────────────────────────────────────────────────
+async function loadSonarr() {
+  const wrap = document.getElementById('sonarr-queue-wrap');
+  try {
+    const { url, apiKey } = CFG.services.sonarr;
+    const h = arrHeaders(apiKey);
+    const [seriesR, missingR, queueR] = await Promise.all([
+      fetch(`${url}/api/v3/series`, { headers: h }),
+      fetch(`${url}/api/v3/wanted/missing?pageSize=1`, { headers: h }),
+      fetch(`${url}/api/v3/queue?pageSize=50`, { headers: h }),
+    ]);
+    const series = await seriesR.json();
+    const missing = await missingR.json();
+    const queue = await queueR.json();
+    document.getElementById('sonarr-monitored').textContent = series.filter(s => s.monitored).length;
+    document.getElementById('sonarr-missing').textContent = fmt(missing.totalRecords);
+    const items = queue.records ?? [];
+    if (!items.length) { wrap.innerHTML = '<div class="empty">queue empty</div>'; return; }
+    wrap.innerHTML = `<table class="downloads-table">
+      <thead><tr><th>episode</th><th>progress</th><th>status</th><th>size</th></tr></thead>
+      <tbody>${items.map(item => {
+        const pct = item.size > 0 ? (((item.size - item.sizeleft) / item.size)*100).toFixed(1) : 0;
+        const status = item.trackedDownloadStatus ?? item.status ?? 'unknown';
+        const bc = status === 'ok' || status === 'downloading' ? 'badge-green' : status.includes('warn') ? 'badge-amber' : 'badge-gray';
+        return `<tr>
+          <td><div class="torrent-name" title="${item.title}">${item.title}</div></td>
+          <td><span class="progress-bar"><span class="progress-fill" style="width:${pct}%"></span></span>${pct}%</td>
+          <td><span class="badge ${bc}">${status}</span></td>
+          <td style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted2)">${fmtBytes(item.size)}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { console.warn('sonarr:', e); wrap.innerHTML = '<div class="empty">could not reach Sonarr</div>'; }
+}
+
+// ── Radarr ───────────────────────────────────────────────────────────
+async function loadRadarr() {
+  const wrap = document.getElementById('radarr-queue-wrap');
+  try {
+    const { url, apiKey } = CFG.services.radarr;
+    const h = arrHeaders(apiKey);
+    const [missingR, queueR] = await Promise.all([
+      fetch(`${url}/api/v3/wanted/missing?pageSize=1`, { headers: h }),
+      fetch(`${url}/api/v3/queue?pageSize=50`, { headers: h }),
+    ]);
+    const missing = await missingR.json();
+    const queue = await queueR.json();
+    document.getElementById('radarr-missing').textContent = fmt(missing.totalRecords);
+    const items = queue.records ?? [];
+    if (!items.length) { wrap.innerHTML = '<div class="empty">queue empty</div>'; return; }
+    wrap.innerHTML = `<table class="downloads-table">
+      <thead><tr><th>movie</th><th>progress</th><th>status</th><th>size</th></tr></thead>
+      <tbody>${items.map(item => {
+        const pct = item.size > 0 ? (((item.size - item.sizeleft) / item.size)*100).toFixed(1) : 0;
+        const status = item.trackedDownloadStatus ?? item.status ?? 'unknown';
+        const bc = status === 'ok' || status === 'downloading' ? 'badge-green' : status.includes('warn') ? 'badge-amber' : 'badge-gray';
+        return `<tr>
+          <td><div class="torrent-name" title="${item.title}">${item.title}</div></td>
+          <td><span class="progress-bar"><span class="progress-fill" style="width:${pct}%"></span></span>${pct}%</td>
+          <td><span class="badge ${bc}">${status}</span></td>
+          <td style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--muted2)">${fmtBytes(item.size)}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { console.warn('radarr:', e); wrap.innerHTML = '<div class="empty">could not reach Radarr</div>'; }
+}
+
+// ── Prowlarr ─────────────────────────────────────────────────────────
+async function loadProwlarr() {
+  try {
+    const { url, apiKey } = CFG.services.prowlarr;
+    const r = await fetch(`${url}/api/v1/indexer`, { headers: arrHeaders(apiKey) });
+    const indexers = await r.json();
+    const enabled = indexers.filter(i => i.enable);
+    document.getElementById('pr-total').textContent = indexers.length;
+    document.getElementById('pr-enabled').textContent = enabled.length;
+    document.getElementById('pr-healthy').textContent = enabled.length;
+  } catch(e) { console.warn('prowlarr:', e); }
+}
+
+// ── Bazarr ───────────────────────────────────────────────────────────
+async function loadBazarr() {
+  try {
+    const { url, apiKey } = CFG.services.bazarr;
+    const r = await fetch(`${url}/api/badges`, { headers: { 'X-API-KEY': apiKey } });
+    const d = await r.json();
+    document.getElementById('bazarr-wanted').textContent = fmt((d.missing_episodes ?? 0) + (d.missing_movies ?? 0));
+  } catch(e) { console.warn('bazarr:', e); }
+}
+
+// ── Main ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ loading';
+
+  if (!CFG) {
+    try {
+      CFG = await loadConfig();
+      buildServiceLinks();
+    } catch(e) {
+      document.querySelector('.main').innerHTML = `<div class="empty" style="color:var(--red)">⚠ ${e.message}</div>`;
+      btn.textContent = '↻ refresh';
+      return;
+    }
+  }
+
+  await Promise.allSettled([
+    loadPihole(), loadQbt(), loadJellyfin(),
+    loadSonarr(), loadRadarr(), loadProwlarr(), loadBazarr(),
+  ]);
+
+  btn.textContent = '↻ refresh';
+  document.getElementById('last-updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

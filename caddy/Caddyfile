@@ -30,3 +30,28 @@ bazarr.media.{$DOMAIN} {
 qbittorrent.media.{$DOMAIN} {
     reverse_proxy gluetun:8081
 }
+
+pihole.media.{$DOMAIN} {
+    reverse_proxy pihole:8082
+}
+
+# Dashboard at the bare media.{$DOMAIN} host.
+# - /pihole-api/* and /qbt-api/* are server-side proxies so the
+#   browser dashboard can hit authenticated APIs without CORS issues.
+# - Everything else serves the static dashboard from /srv/www.
+media.{$DOMAIN} {
+    handle /pihole-api/* {
+        uri strip_prefix /pihole-api
+        reverse_proxy pihole:8082
+    }
+
+    handle /qbt-api/* {
+        uri strip_prefix /qbt-api
+        reverse_proxy gluetun:8081
+    }
+
+    handle {
+        root * /srv/www
+        file_server
+    }
+}

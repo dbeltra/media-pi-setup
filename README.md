@@ -1,6 +1,6 @@
 # Media Server Setup
 
-A complete guide to setting up a self-hosted media server on a Dell Latitude 5420 (or any Ubuntu x86 machine) with Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent (via NordVPN), Seerr, Bazarr, and Tailscale.
+A complete guide to setting up a self-hosted media server on a Dell Latitude 5420 (or any Ubuntu x86 machine) with Jellyfin, Sonarr, Radarr, Prowlarr, qBittorrent (via NordVPN), Seerr, Bazarr, Pi-hole, a status dashboard, and Tailscale.
 
 > The hostname is kept as `raspberrypi` from a previous Pi 3B+ setup so that existing clients keep working. Everything in this guide is x86/Ubuntu.
 
@@ -29,6 +29,8 @@ The Iris Xe GPU is used for Jellyfin hardware transcoding via Intel Quick Sync (
 | Gluetun | NordVPN WireGuard gateway | — |
 | Bazarr | Subtitle manager | 6767 |
 | Maintainerr | Watched-media cleanup (rule-based) | 6246 |
+| Pi-hole | DNS-level ad/tracker blocker | 53, 8082 |
+| Dashboard | Static status page (Caddy-served) | 443 (`media.<DOMAIN>`) |
 | Tailscale | Remote access with MagicDNS | — |
 
 Container auto-updates are handled by a cron job (no Watchtower).
@@ -321,6 +323,25 @@ services:
       - 6246:6246
     sysctls: *no-ipv6
     restart: unless-stopped
+
+  # DNS-level ad/tracker blocker. See Step 16.
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    environment:
+      - TZ=Europe/Madrid
+      - FTLCONF_webserver_api_password=${PIHOLE_PASSWORD}
+      - FTLCONF_dns_upstreams=1.1.1.1;8.8.8.8
+      - FTLCONF_webserver_port=8082    # 80 is reserved for Caddy
+      - FTLCONF_dns_listeningMode=all
+    volumes:
+      - ./config/pihole/etc-pihole:/etc/pihole
+      - ./config/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8082:8082"
+    restart: unless-stopped
 ```
 
 Start everything:
@@ -533,6 +554,8 @@ You should see `obtained certificate` for each hostname. After that:
 - `https://prowlarr.media.yourdomain.com`
 - `https://bazarr.media.yourdomain.com`
 - `https://qbittorrent.media.yourdomain.com`
+- `https://pihole.media.yourdomain.com` (admin UI — added in Step 16)
+- `https://media.yourdomain.com` (status dashboard — added in Step 17)
 
 > qBittorrent is reverse-proxied to `gluetun:8081`, not `qbittorrent:8081`, because qBittorrent shares gluetun's network namespace (`network_mode: service:gluetun`).
 
@@ -692,12 +715,144 @@ So total grace ≈ rule's 7-day predicate + up to ~12h handler lag. Hit the play
 
 ---
 
+## Step 16 — Pi-hole (DNS ad-blocker)
+
+Network-wide ad/tracker blocking for every device on the tailnet (and, optionally, the LAN).
+
+Pi-hole is included in the compose snippet above. Two things to know up front:
+
+- The admin UI listens on `:8082`, not `:80`, because Caddy owns `:80`/`:443`.
+- DNS listens on `:53` (TCP+UDP). If `systemd-resolved` is bound to `:53` on the host, free it first:
+  ```bash
+  sudo sed -i 's/^#\?DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf
+  sudo systemctl restart systemd-resolved
+  ```
+
+Add to `~/mediaserver/.env`:
+```
+PIHOLE_PASSWORD=choose_a_strong_password
+```
+
+Bring it up:
+```bash
+docker compose --env-file .env up -d pihole
+```
+
+Add to `caddy/Caddyfile`:
+```caddyfile
+pihole.media.{$DOMAIN} {
+    reverse_proxy pihole:8082
+}
+```
+Then `docker compose restart caddy`. Admin UI is at `https://pihole.media.<DOMAIN>/admin`.
+
+### Point Tailscale clients at Pi-hole
+
+In the Tailscale admin DNS panel (https://login.tailscale.com/admin/dns):
+
+1. Under **Global nameservers**, replace `1.1.1.1` with your **Tailscale IP** (the laptop's tailnet address).
+2. Leave **Override local DNS** off (so MagicDNS still resolves tailnet hostnames).
+
+Verify from another tailnet device:
+```bash
+dig @100.100.100.100 doubleclick.net   # should return 0.0.0.0 (blocked)
+```
+
+> ⚠️ Don't list Pi-hole as a global nameserver under its **own** IP — that creates a forwarding loop. Use the Tailscale IP of the host running Pi-hole.
+
+---
+
+## Step 17 — Status Dashboard
+
+A single static page at `https://media.<DOMAIN>` that aggregates live status across the stack:
+
+- Pi-hole — queries today / blocked / block rate / blocklist size / clients
+- qBittorrent — active downloads with progress and ETA
+- Jellyfin — "now playing" sessions
+- Library — movie / show counts, missing episodes, missing movies, wanted subtitles
+- Sonarr / Radarr — current queue
+- Prowlarr — indexer health (total / enabled / healthy)
+
+All API calls happen in the browser using values from `www/config.json`. Pi-hole and qBittorrent don't allow arbitrary CORS origins, so Caddy reverse-proxies them on the dashboard vhost (`/pihole-api/*` and `/qbt-api/*`).
+
+### Wire up Caddy
+
+Add the dashboard volume to the Caddy service in `docker-compose.yml`:
+```yaml
+  caddy:
+    # ...existing config...
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./config/caddy/data:/data
+      - ./config/caddy/config:/config
+      - ./www:/srv/www:ro                  # ← add this
+```
+
+Add a site block to `caddy/Caddyfile`:
+```caddyfile
+media.{$DOMAIN} {
+    handle /pihole-api/* {
+        uri strip_prefix /pihole-api
+        reverse_proxy pihole:8082
+    }
+
+    handle /qbt-api/* {
+        uri strip_prefix /qbt-api
+        reverse_proxy gluetun:8081
+    }
+
+    handle {
+        root * /srv/www
+        file_server
+    }
+}
+```
+
+### Get API keys
+
+Pull the **API Key** from each service (mostly under Settings → General):
+
+- Sonarr, Radarr, Prowlarr, Bazarr — settings → general → API key.
+- Jellyfin — Dashboard → API Keys → **+** → name it `Dashboard`.
+
+Add all of them, plus the existing `PIHOLE_PASSWORD` and your qBittorrent Web UI password, to `~/mediaserver/.env`:
+```
+SONARR_API_KEY=...
+RADARR_API_KEY=...
+PROWLARR_API_KEY=...
+JELLYFIN_API_KEY=...
+BAZARR_API_KEY=...
+PIHOLE_PASSWORD=...           # already set in Step 16
+QBITTORRENT_PASSWORD=...
+DOMAIN=yourdomain.com         # already set in Step 14
+```
+
+### Generate the config and bring it up
+
+```bash
+cd ~/mediaserver
+./generate-config.sh           # writes www/config.json from .env
+docker compose --env-file .env up -d --build caddy
+```
+
+Open `https://media.<DOMAIN>` — every panel should populate within a few seconds.
+
+> `www/config.json` contains every API key in cleartext, so the repo gitignores it. Anyone who can reach `https://media.<DOMAIN>` can read it — that hostname only resolves to your Tailscale IP, so access is already gated by the tailnet, but **don't** make this hostname public.
+
+Re-run `generate-config.sh` whenever you rotate a key or password; Caddy serves the file directly from the bind mount, so no container restart is needed.
+
+---
+
 ## Directory Structure
 
 ```
 ~/mediaserver/
 ├── docker-compose.yaml
-├── .env                  # NordVPN key — never commit to git
+├── .env                  # NordVPN + API keys + passwords — never commit to git
+├── generate-config.sh    # Builds www/config.json from .env (Step 17)
+├── www/
+│   ├── index.html        # Dashboard
+│   └── config.json       # Generated — gitignored, contains API keys
 └── config/
     ├── bazarr/
     ├── jellyfin/
@@ -707,7 +862,8 @@ So total grace ≈ rule's 7-day predicate + up to ~12h handler lag. Hit the play
     ├── prowlarr/
     ├── qbittorrent/
     ├── gluetun/
-    └── maintainerr/       # SQLite DB + rule definitions (Step 15)
+    ├── pihole/           # etc-pihole/ + etc-dnsmasq.d/ (Step 16)
+    └── maintainerr/      # SQLite DB + rule definitions (Step 15)
 
 /srv/downloads/           # NVMe — active torrent downloads
 └── incomplete/
@@ -737,6 +893,8 @@ With MagicDNS enabled, use the hostname from any Tailscale device. Use the local
 | Bazarr | `http://raspberrypi:6767` | `SERVER_IP:6767` |
 | Maintainerr | `http://raspberrypi:6246` | `SERVER_IP:6246` |
 | qBittorrent | `http://raspberrypi:8081` | `SERVER_IP:8081` |
+| Pi-hole admin | `http://raspberrypi:8082/admin` | `SERVER_IP:8082/admin` |
+| Dashboard | `https://media.<DOMAIN>` | — |
 
 > ⚠️ For TV/media players at home, use the **local IP**, not Tailscale. Tailscale streaming is bottlenecked by home upload speed (~15 Mbps), which is not enough for reliable 1080p playback.
 
