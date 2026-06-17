@@ -95,9 +95,10 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 ```
 0 4 * * * cd $HOME/mediaserver && docker compose pull && docker compose up -d
 0 4 * * 0 cd $HOME/mediaserver && docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent
+30 */6 * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/translate-missing-es.py >> $HOME/mediaserver/logs/translate-es.log 2>&1
 ```
 
-Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads.
+Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads. Every 6h, auto-translate any missing Spanish subtitles from English via Gemini (see **Subtitles** below).
 
 ---
 
@@ -110,7 +111,13 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 - Custom format `Preferred` (score +500): prefers `x264`, `H\.264` — still preferred for Google TV direct play
 - 4K and remux disabled entirely in Quality Definitions
 
-**Subtitles**: Bazarr handles everything. Jellyfin's built-in subtitle download is disabled. OpenSubtitles plugin uninstalled. Bazarr downloads Spanish + English, uses audio track as sync reference.
+**Subtitles**: Bazarr handles everything. Jellyfin's built-in subtitle download is disabled. OpenSubtitles plugin uninstalled. Language profile **"English + Spanish"** (profileId 1), cutoff `null` (wants both, never early-satisfied), series `minimum_score` 80 / movie 70.
+
+- **Providers** (`general.enabled_providers`): `opensubtitlescom`, `subtitulamostv`, `subf2m`, `podnapisi`, `gestdown`. `subf2m` needs a User-Agent string set in its config section or it errors with "User-agent config missing". **`subdivx` was removed from this Bazarr build** — it gets silently dropped if enabled (no error, just absent from the active provider set). `subtis` is movies-only; `subsource`/`subdl` need a free API key. Do not re-add the old Hungarian (`supersubtitles`) / movies-only (`yifysubtitles`) providers — they don't help Spanish TV.
+- **`use_embedded_subs = False`** (deliberate). With it `True`, embedded English tracks satisfied "English" so Bazarr never downloaded an external `.srt` — leaving the translator with no source file. False forces external en+es sidecars for the whole library. After toggling it, run the `movies_full_scan_subtitles` + `series_full_scan_subtitles` tasks (via `POST /api/system/tasks?taskid=<id>`) to recompute missing status, then the wanted-search tasks.
+- **Spanish-for-English-content via translation, NOT Whisper.** OpenAI Whisper (the `whisperai` provider) can only translate audio → English, never English → Spanish (verified in `whisperai.py`: "Only translations to English supported"). For English-audio movies/shows the only automated path to Spanish is translating an English subtitle. So Whisper is not used.
+- **Translator = Gemini** (`translator.translator_type = gemini`, `gemini_model = gemini-2.5-flash`). **`gemini-2.0-flash` free tier is dead** (`limit: 0` → instant 429); `gemini-2.5-flash` / `-flash-lite` / `gemini-flash-latest` still have free quota (~250 req/day, ~10 RPM). Key in `translator.gemini_key` (see `CLAUDE.local.md`). `translator_info = False` (no on-screen "translated by" credit cue). Translated subs are logged in Bazarr history with a below-cutoff score, so the `upgrade_subtitles` task auto-replaces them with a real human Spanish sub if one appears within the 7-day window.
+- **Auto-translate cron**: `translate-missing-es.py` (repo root, deployed to `~/mediaserver/`) finds movies/episodes wanting Spanish that have an external English `.srt`, and calls Bazarr's translate API (`PATCH /api/subtitles`, `action=translate`) for each. It **serializes** (waits for each async job to finish before the next) to avoid bursting past Gemini's free-tier RPM — firing requests in parallel causes 429s with no backoff (Bazarr's retry has none). Idempotent: once a Spanish file exists the item leaves the wanted list. Runs every 6h, logs to `~/mediaserver/logs/translate-es.log`. Reads `BAZARR_API_KEY` from `.env`.
 
 **Tailscale MagicDNS**: Enabled. Laptop accessible as `raspberrypi` from all Tailscale devices (hostname kept from Pi for compatibility).
 
