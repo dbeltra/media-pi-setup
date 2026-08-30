@@ -8,18 +8,20 @@ x-no-ipv6: &no-ipv6
 
 services:
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: qmcgaw/gluetun:v3.41.3
     container_name: gluetun
     cap_add:
       - NET_ADMIN
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
-      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_SERVICE_PROVIDER=custom
+      - WIREGUARD_ENDPOINT_IP=186.247.163.6
+      - WIREGUARD_ENDPOINT_PORT=51820
+      - WIREGUARD_PUBLIC_KEY=5p4RkybdRU5uaDi90eu4KZPTFif0lKCg4Qp6t1c4F30=
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=${NORDVPN_PRIVATE_KEY}
       - WIREGUARD_ADDRESSES=10.5.0.2/32
-      - SERVER_HOSTNAMES=nl903.nordvpn.com
       - FIREWALL_INPUT_PORTS=6881
     ports:
       - 8080:8000
@@ -159,17 +161,17 @@ services:
     restart: unless-stopped
 
   caddy:
-    build: ../caddy
+    build: ./caddy
     container_name: caddy
     ports:
       - 80:80
       - 443:443
       - 443:443/udp
     volumes:
-      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./config/caddy/data:/data
       - ./config/caddy/config:/config
-      - ../www:/srv/www:ro
+      - ./www:/srv/www:ro 
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
       - DOMAIN=${DOMAIN}

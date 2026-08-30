@@ -96,9 +96,10 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 0 4 * * * cd $HOME/mediaserver && docker compose pull && docker compose up -d
 0 4 * * 0 cd $HOME/mediaserver && docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent
 30 */6 * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/translate-missing-es.py >> $HOME/mediaserver/logs/translate-es.log 2>&1
+*/15 * * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/healthcheck.py >> $HOME/mediaserver/logs/healthcheck-cron.log 2>&1
 ```
 
-Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads. Every 6h, auto-translate any missing Spanish subtitles from English via Gemini (see **Subtitles** below).
+Health scan every 15 min (see **Monitoring** below). Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads. Every 6h, auto-translate any missing Spanish subtitles from English via Gemini (see **Subtitles** below).
 
 ---
 
@@ -144,6 +145,23 @@ Two more notes: share limits apply only to **completed** torrents (an incomplete
 **Historical — before 2026-08-30, qBittorrent had no seeding limits** — `max_ratio_enabled: False`, `max_seeding_time_enabled: False`, `max_inactive_seeding_time_enabled: False`. Torrents seed forever and nothing ages out, which is why `/srv/downloads` grows without bound (155G / 51 torrents as of 2026-08-30). To make the disk self-manage, set a share ratio and/or seeding time limit with the action "remove torrent and its files". Before enabling that, resolve any never-imported downloads or they will be deleted with nothing to re-grab them.
 
 **Auditing what is safe to delete from `/srv/downloads`**: cross-reference each entry against `downloadFolderImported` / `movieFileImported` events in the Sonarr and Radarr history APIs (`/api/v3/history?pageSize=250`, paginate). An entry with a matching import event has a library copy; one without does not. Season packs need matching by hand — the fuzzy per-episode match misses them. **Also check qBittorrent first**: an entry that is still seeding is not an orphan, and removing it out from under qBittorrent leaves the torrent in `missingFiles`.
+
+**Monitoring (`healthcheck.py`)**: runs every 15 min from cron, **alert-only — it never changes anything**. Pushes to [ntfy](https://ntfy.sh) on the topic in `.env` as `NTFY_TOPIC`; install the ntfy app and subscribe to that topic to receive alerts. Runs in ~3s, stdlib only, no extra containers.
+
+Six checks, each chosen because it caught something that had been failing silently:
+
+| Check | Why |
+|---|---|
+| Containers running | baseline |
+| gluetun health status | container liveness is worthless here — gluetun sat `Up 5 hours` while the tunnel was stone dead |
+| **VPN leak** | compares qBittorrent's egress IP against the host's, live. Recreating gluetun breaks qBittorrent's netns, so this is the check that matters most |
+| Disk usage | root ≥80%, `/mnt/media` ≥85% |
+| Radarr/Sonarr/Prowlarr `/health` | the *arr apps already do the analysis — this just forwards it. Covers indexers, download clients, root folders |
+| Repeated error log lines | ≥20 identical error lines/hour in any container. Generic, so it catches loops nobody predicted — the Radarr import loop ran ~60/hour for 40 days unnoticed |
+
+**It notifies only on state change.** Active problems are kept in `.healthcheck-state.json`; a new problem and a resolved one each send once. Without this a 15-min cron would send ~96 "still broken" pushes a day and you would learn to ignore it, which is worse than no alerting. First run sends one summary instead of a burst.
+
+The ntfy topic is world-readable by anyone who knows it, so messages deliberately contain no IPs, hostnames or keys. `healthcheck.py --test` sends a test push; `--selftest` asserts the state-diff logic.
 
 **TV playback**: Google TV uses Fladder app connected to local IP `192.168.1.47:8096` — NOT Tailscale, to avoid upload speed bottleneck (15 Mbps upload is not enough for reliable 1080p streaming via Tailscale).
 
