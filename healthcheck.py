@@ -187,8 +187,40 @@ def check_log_noise():
     return problems
 
 
+def check_dns():
+    """Pi-hole resolves for the whole LAN, so 'container up' is not enough.
+
+    A Pi-hole that answers but resolves nothing takes the entire house offline,
+    and one that resolves but stopped blocking fails silently forever.
+    """
+    ip = sh("dig", "+short", "+time=3", "+tries=1", "@127.0.0.1", "github.com", timeout=20)
+    if not re.search(r"\d+\.\d+\.\d+\.\d+", ip):
+        # nothing else about DNS is meaningful if this is broken
+        return {"dns:resolve": "Pi-hole is not resolving — the whole LAN loses DNS"}
+    blocked = sh("dig", "+short", "+time=3", "+tries=1", "@127.0.0.1", "doubleclick.net", timeout=20)
+    if blocked.strip() not in ("", "0.0.0.0", "::"):
+        return {"dns:blocking": "Pi-hole resolves but is no longer blocking ads (gravity list empty?)"}
+    return {}
+
+
 CHECKS = [check_containers, check_gluetun_health, check_vpn_leak,
-          check_disks, check_arr_health, check_log_noise]
+          check_disks, check_arr_health, check_log_noise, check_dns]
+
+
+def ping_deadman():
+    """Tell an external watchdog we are alive.
+
+    Everything else here runs ON the server, so a box that goes dark sends
+    nothing and silence looks identical to health. This is the only check that
+    can catch that — the watchdog alerts when the pings stop.
+    """
+    url = env("HEALTHCHECK_PING_URL")
+    if not url:
+        return
+    try:
+        urllib.request.urlopen(url, timeout=10).read()
+    except Exception as e:
+        log(f"deadman ping failed: {e}")
 
 
 # ---------------------------------------------------------------- state
@@ -245,6 +277,7 @@ def main():
                    f"{len(problems)} existing issue(s):\n" + "\n".join(problems.values()),
                    tags="mag")
         log(f"first run, {len(problems)} issue(s) recorded")
+        ping_deadman()
         return
 
     new, recovered = diff_state(previous, problems)
@@ -258,6 +291,7 @@ def main():
                tags="white_check_mark", priority="low")
 
     log(f"{len(problems)} active, {len(new)} new, {len(recovered)} recovered")
+    ping_deadman()
 
 
 if __name__ == "__main__":

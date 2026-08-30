@@ -162,6 +162,9 @@ Six checks, each chosen because it caught something that had been failing silent
 | Disk usage | root ≥80%, `/mnt/media` ≥85% |
 | Radarr/Sonarr/Prowlarr `/health` | the *arr apps already do the analysis — this just forwards it. Covers indexers, download clients, root folders |
 | Repeated error log lines | ≥20 identical error lines/hour in any container. Generic, so it catches loops nobody predicted — the Radarr import loop ran ~60/hour for 40 days unnoticed |
+| Pi-hole resolving **and** blocking | Pi-hole is the resolver for the whole LAN, so "container up" is not enough: one that answers but resolves nothing takes the house offline, and one that resolves but stopped blocking fails silently |
+
+**Dead-man's switch**: everything above runs *on* the server, so a box that goes dark sends nothing — and silence is indistinguishable from health. Set `HEALTHCHECK_PING_URL` in `.env` to a [healthchecks.io](https://healthchecks.io) ping URL; the script pokes it after every completed run and the watchdog alerts when the pings stop. Optional — leave it empty to disable.
 
 **It notifies only on state change.** Active problems are kept in `.healthcheck-state.json`; a new problem and a resolved one each send once. Without this a 15-min cron would send ~96 "still broken" pushes a day and you would learn to ignore it, which is worse than no alerting. First run sends one summary instead of a burst.
 
