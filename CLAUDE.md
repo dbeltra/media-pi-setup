@@ -64,7 +64,7 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 ```
 ~/mediaserver/
 ├── docker-compose.yml
-├── .env                  # Contains NORDVPN_PRIVATE_KEY, PIHOLE_PASSWORD, dashboard API keys, Mullvad backup keys
+├── .env                  # Contains NORDVPN_PRIVATE_KEY, PIHOLE_PASSWORD, dashboard API keys
 ├── generate-config.sh    # Reads .env → writes www/config.json for the dashboard
 ├── www/
 │   ├── index.html        # Dashboard (vanilla HTML/CSS/JS, ~25KB)
@@ -104,7 +104,7 @@ Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Su
 
 ## Configuration Decisions
 
-**VPN**: NordVPN via gluetun using WireGuard. Only qBittorrent routes through VPN via `network_mode: service:gluetun`. All other services use normal network. A Mullvad VPN account exists as a backup, but its key is currently deregistered (see `CLAUDE.local.md`).
+**VPN**: NordVPN via gluetun using WireGuard. Only qBittorrent routes through VPN via `network_mode: service:gluetun`. All other services use normal network. There is no backup VPN provider — the old Mullvad account expired 2026-05-03 and was removed 2026-08-30 to avoid paying two subscriptions. If NordVPN fails, recovery means finding a working NordVPN server (see **Known Issues**).
 
 The gluetun service is configured with **`VPN_SERVICE_PROVIDER=custom`** and an explicit `VPN_ENDPOINT_IP` / `VPN_ENDPOINT_PORT` / `WIREGUARD_PUBLIC_KEY`, rather than `nordvpn` + `SERVER_HOSTNAMES`. Reason: gluetun's *bundled* server database is stale in every release — v3.41.3 rejects `nl1020`, and even `latest` rejects `nl1252` — so pinning by hostname fails outright on any recent server. The custom endpoint bypasses the database entirely.
 
