@@ -209,6 +209,15 @@ Two-stage schedule: the rule executor (cron `0 0-23/8 * * *` = every 8h) re-scan
 - **qBittorrent "downloading metadata"**: usually DHT taking time, Force Reannounce helps. If persistent, restart gluetun
 - **Hardcoded subtitles (anime)**: avoid releases with `hardsub`, `subbed`, `ASS` in name. Look for clean WEB-DL releases
 - **Buffering on TV**: check Jellyfin Dashboard → Active Streams. If transcoding, check that QSV is being used (should show "(HW)" in transcode info). If direct playing, ensure TV uses local IP not Tailscale
+- **Server unreachable at `192.168.1.47` but pings, SSH refused, all services dead**: another device took the IP. `.47` is set **statically** on the server (netplan, `proto static`) but sits inside the router's DHCP pool (`192.168.1.33–199`), so the router is free to lease it to anyone. Diagnosed by comparing the MAC answering the address against the server's real one:
+  ```bash
+  arp -d 192.168.1.47; ping -c2 192.168.1.47; arp -n 192.168.1.47
+  # server's ethernet MAC is a0:29:19:3c:d3:ac — anything else is a squatter
+  ```
+  From the server's side everything looks perfect (it keeps the address and keeps serving), so `healthcheck.py` cannot see this — it is only visible from another host on the LAN. The server stays reachable on its **Wi-Fi** interface meanwhile; verify the SSH host key fingerprint matches before trusting that path.
+
+  **Fixed 2026-08-30** in the router: *Configuration → LAN Setting → LAN DHCP → index 2 → Reserved IP* → `192.168.1.47` with netmask **`255.255.255.255`**. The /32 is essential — the field defaults to `255.255.255.0`, which would reserve the entire subnet and stop DHCP for every device on the network. Use **Reserved IP**, not *Static Lease*: the server never sends a DHCP request, so a MAC binding would never fire; the goal is only to stop the router handing the address to others. Persist it with *Management → Maintenance → Configuration → Save*, then reboot the squatting device — a reservation does not revoke a lease already issued (12h here).
+
 - **Tailscale DNS blocks external hostnames**: Tailscale sets `/etc/resolv.conf` to `100.100.100.100` with an immutable flag. Some external APIs (e.g. NordVPN) can't resolve. To temporarily fix: `sudo chattr -i /etc/resolv.conf` then add `nameserver 1.1.1.1`. Rebooting restores Tailscale DNS.
 - **NordVPN CLI hijacks networking**: Never install the `nordvpn` package **on the host**. It modifies routing tables and firewall rules, breaking SSH, Docker networking, and Tailscale. Run it in a disposable container instead (see above) — the container's own netns makes the hijack harmless.
 - **After recreating gluetun, always recreate qbittorrent**: `network_mode: service:gluetun` means the netns reference breaks, and the *arr apps then report "All download clients are unavailable". Force a re-test afterwards by POSTing the download client config to `/api/v3/downloadclient/test`, or the health error stays cached.
