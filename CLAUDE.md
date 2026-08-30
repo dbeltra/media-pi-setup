@@ -136,7 +136,11 @@ The image is **pinned to `qmcgaw/gluetun:v3.41.3`**, not `latest`. The 4am cron 
 
 **Downloads vs library — they are separate copies, not hardlinks.** `/srv/downloads` is on the LVM root (`dev=64512`) and `/mnt/media` is on the external HDD (`dev=2049`). Hardlinks cannot span filesystems, so the *arr apps **copy** on import and the two files are fully independent. Deleting a torrent and its data never touches the library; only Maintainerr deletes library files, gated on `Jellyfin.isWatched == true`. The converse also matters: a download that **failed to import** exists only in `/srv/downloads`, so deleting it loses the only copy.
 
-**Seeding limits (set 2026-08-30)**: ratio **2.0** or **14 days** (`max_seeding_time` is in *minutes* = 20160), whichever comes first, then **remove the torrent and its files**.
+**Seeding limits (set 2026-08-30)**: **14 days only** (`max_seeding_time` is in *minutes* = 20160), then **remove the torrent and its files** (`max_ratio_act: 3`).
+
+The ratio limit is deliberately **off**. It was briefly set to 2.0, but qBittorrent fires on ratio **or** time — whichever comes first — so a fast-seeding torrent could hit ratio 2.0 within minutes, before the *arr import poll runs, deleting the download out from under it. A time-only limit puts a 14-day floor under every removal and eliminates that race. Space still self-manages.
+
+Sonarr will still show the health warning *"Download client qBittorrent is set to remove completed downloads"*. That check fires on **any** removal setting, not the ratio, so it cannot be cleared without disabling removal entirely. It is benign here — 14 days is far longer than any import delay. Leave it.
 
 ⚠️ **`max_ratio_act` enum changed in qBittorrent 5.x.** On this build (v5.2.3), `2` = **enable super seeding** and `3` = **remove torrent and its content**. Setting `2` (the 4.x value for "remove with content") silently flips `super_seeding: true` on every over-limit torrent and deletes nothing — no error, no log line. Verify after changing it: if torrents are not disappearing, check `super_seeding` in `/api/v2/torrents/info`; if it is `true`, the action is wrong. Read the value back from `/api/v2/app/preferences` — it echoes whatever you set, so a successful readback proves nothing about the semantics.
 
