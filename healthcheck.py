@@ -33,6 +33,9 @@ CONTAINERS = ["gluetun", "qbittorrent", "jellyfin", "seerr", "sonarr", "radarr",
 ARR = {"radarr": (7878, "v3"), "sonarr": (8989, "v3"), "prowlarr": (9696, "v1")}
 
 DISKS = {"/": 80, "/mnt/media": 85}      # mount -> warn at this use%
+MEDIA = "/mnt/media"
+# short-term indexer backoff flaps several times a day; the 6h long-term check covers real outages
+ARR_IGNORED_SOURCES = {"IndexerStatusCheck"}
 LOG_REPEAT_LIMIT = 20                     # identical error lines per hour
 IP_SERVICES = ["https://api.ipify.org", "https://ifconfig.me/ip"]
 
@@ -149,6 +152,19 @@ def check_disks():
     return problems
 
 
+def check_media_mount():
+    """A USB drop leaves /mnt/media an empty dir, which df happily reports on.
+
+    Containers keep the dead mount even after the host remounts, so read
+    through Jellyfin too — only a recreate fixes that side.
+    """
+    if not os.path.ismount(MEDIA):
+        return {"media:unmounted": f"external disk is not mounted at {MEDIA} — library offline"}
+    if not sh("docker", "exec", "jellyfin", "ls", "/data/tv"):
+        return {"media:stale": "Jellyfin cannot read the library — recreate jellyfin/sonarr/radarr/bazarr"}
+    return {}
+
+
 def check_arr_health():
     problems = {}
     for name, (port, ver) in ARR.items():
@@ -160,6 +176,8 @@ def check_arr_health():
             problems[f"arr:{name}:unreachable"] = f"{name} API not responding"
             continue
         for item in data:
+            if item.get("source") in ARR_IGNORED_SOURCES:
+                continue
             msg = item.get("message", "")
             # source is stable per fault, so the alert key is stable too
             ident = re.sub(r"[^a-z0-9]+", "-", msg.lower())[:40]
@@ -204,7 +222,7 @@ def check_dns():
 
 
 CHECKS = [check_containers, check_gluetun_health, check_vpn_leak,
-          check_disks, check_arr_health, check_log_noise, check_dns]
+          check_media_mount, check_disks, check_arr_health, check_log_noise, check_dns]
 
 
 def ping_deadman():
@@ -290,7 +308,8 @@ def main():
                "\n".join(f"resolved: {k}" for k in recovered),
                tags="white_check_mark", priority="low")
 
-    log(f"{len(problems)} active, {len(new)} new, {len(recovered)} recovered")
+    log(f"{len(problems)} active, {len(new)} new, {len(recovered)} recovered"
+        + "".join(f" +{k}" for k in new) + "".join(f" -{k}" for k in recovered))
     ping_deadman()
 
 
