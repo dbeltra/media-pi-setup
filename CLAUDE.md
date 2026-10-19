@@ -156,15 +156,16 @@ Two more notes: share limits apply only to **completed** torrents (an incomplete
 
 **Monitoring (`healthcheck.py`)**: runs every 15 min from cron, **alert-only — it never changes anything**. Pushes to [ntfy](https://ntfy.sh) on the topic in `.env` as `NTFY_TOPIC`; install the ntfy app and subscribe to that topic to receive alerts. Runs in ~3s, stdlib only, no extra containers.
 
-Six checks, each chosen because it caught something that had been failing silently:
+Seven checks, each chosen because it caught something that had been failing silently:
 
 | Check | Why |
 |---|---|
 | Containers running | baseline |
 | gluetun health status | container liveness is worthless here — gluetun sat `Up 5 hours` while the tunnel was stone dead |
 | **VPN leak** | compares qBittorrent's egress IP against the host's, live. Recreating gluetun breaks qBittorrent's netns, so this is the check that matters most |
+| Media disk mounted **and** readable from Jellyfin | 2026-09-27 the USB disk dropped and re-enumerated as `sdb`; the host lost the mount (so `df` read the root disk and looked fine) and containers kept the dead `sda1` → "source error" in clients. Fix: `e2fsck`, `mount /mnt/media`, then **recreate** jellyfin/sonarr/radarr/bazarr |
 | Disk usage | root ≥80%, `/mnt/media` ≥85% |
-| Radarr/Sonarr/Prowlarr `/health` | the *arr apps already do the analysis — this just forwards it. Covers indexers, download clients, root folders |
+| Radarr/Sonarr/Prowlarr `/health` | the *arr apps already do the analysis — this just forwards it. Covers indexers, download clients, root folders. `IndexerStatusCheck` (short-term backoff) is ignored — it flapped several times a day; `IndexerLongTermStatusCheck` (>6h) still alerts |
 | Repeated error log lines | ≥20 identical error lines/hour in any container. Generic, so it catches loops nobody predicted — the Radarr import loop ran ~60/hour for 40 days unnoticed |
 | Pi-hole resolving **and** blocking | Pi-hole is the resolver for the whole LAN, so "container up" is not enough: one that answers but resolves nothing takes the house offline, and one that resolves but stopped blocking fails silently |
 
@@ -173,6 +174,14 @@ Six checks, each chosen because it caught something that had been failing silent
 **It notifies only on state change.** Active problems are kept in `.healthcheck-state.json`; a new problem and a resolved one each send once. Without this a 15-min cron would send ~96 "still broken" pushes a day and you would learn to ignore it, which is worse than no alerting. First run sends one summary instead of a burst.
 
 The ntfy topic is world-readable by anyone who knows it, so messages deliberately contain no IPs, hostnames or keys. `healthcheck.py --test` sends a test push; `--selftest` asserts the state-diff logic.
+
+**Power-loss recovery (set 2026-10-19, after an outage drained the battery)**: the server comes back unattended, no login needed. Tested by `poweroff` + replugging AC.
+- **BIOS `WakeOnAc = Enabled`** — boots when AC returns. Only fires from a fully-off state.
+- **BIOS `PrimaryBattChargeCfg = PrimAcUse`** (was `Express`) — always-plugged laptop, so cap the charge instead of holding 100%.
+- Both set from Linux via `/sys/class/firmware-attributes/dell-wmi-sysman/attributes/<name>/current_value` (`echo X | sudo tee ...`; reading also needs sudo). No BIOS admin password is set, so no reboot into setup is needed.
+- **UPower** (`/etc/UPower/UPower.conf`): `PercentageAction=10.0`, `CriticalPowerAction=PowerOff` (was `HybridSleep` at 2%). A clean poweroff protects the HDD and leaves the machine fully off, which is the state Wake on AC needs.
+- **`/etc/systemd/system/docker.service.d/wait-media.conf`**: `After=mnt-media.mount` — ordering only, not `Requires`, so a missing HDD still lets Docker (and Pi-hole DNS) start.
+- Containers return via `restart: unless-stopped` + `docker`/`tailscaled`/`cron` enabled at boot.
 
 **TV playback**: Google TV uses Fladder app connected to local IP `192.168.1.47:8096` — NOT Tailscale, to avoid upload speed bottleneck (15 Mbps upload is not enough for reliable 1080p streaming via Tailscale).
 
