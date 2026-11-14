@@ -115,6 +115,16 @@ services:
     sysctls: *no-ipv6
     restart: unless-stopped
 
+  flaresolverr:
+    # Solves Cloudflare challenges for Prowlarr. Only indexers tagged
+    # "flaresolverr" in Prowlarr go through it. No port: Prowlarr reaches it
+    # at http://flaresolverr:8191 on the compose network.
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - TZ=Europe/Madrid
+    restart: unless-stopped
+
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr

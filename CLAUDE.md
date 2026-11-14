@@ -30,6 +30,7 @@ A self-hosted media server running on a **Dell Latitude 5420** laptop with a 500
 | Sonarr | TV automation | 8989 |
 | Radarr | Movie automation | 7878 |
 | Prowlarr | Indexer manager | 9696 |
+| FlareSolverr | Cloudflare challenge solver for Prowlarr | — (internal 8191) |
 | qBittorrent | Torrent client (via NordVPN) | 8081 |
 | Gluetun | NordVPN WireGuard gateway | — |
 | Bazarr | Subtitle manager | 6767 |
@@ -222,6 +223,9 @@ Two-stage schedule: the rule executor (cron `0 0-23/8 * * *` = every 8h) re-scan
   docker rm -f nordkey                               # `nordvpn logout` REVOKES the API token — skip it
   ```
   Feed the resulting endpoint IP and peer public key into gluetun's `VPN_ENDPOINT_IP` / `WIREGUARD_PUBLIC_KEY`. Note NordVPN shares one WireGuard public key across whole server clusters (22 distinct keys across 800 servers), so an identical key on several servers is normal, not a parsing bug.
+- **Indexers blocked by Cloudflare** ("blocked by CloudFlare Protection"): FlareSolverr (set 2026-11-14) is a Prowlarr *indexer proxy* at `http://flaresolverr:8191/` bound to the tag `flaresolverr`. Only indexers carrying that tag use it — currently EZTV and Uindex. To route another indexer through it, add the tag to the indexer in Prowlarr. **TorrentDownload fails with a TLS "connection reset by peer"** — that is Telefónica blocking the site, not Cloudflare, so FlareSolverr does not help.
+- **All indexers failing at once / containers can't resolve anything**: containers inherit the host resolver, which is Tailscale's `100.100.100.100`. If Tailscale logs out, every container loses DNS (2026-11-04: 10 days of no searches, Seerr unable to reach TMDB). Fix Tailscale first, then `POST /api/v1/indexer/testall` in Prowlarr to clear the backoff instead of waiting for it to expire.
+- **Fake releases containing a `.exe`**: show up in the Sonarr/Radarr queue as `importPending` with *"Caution: Found executable file with extension: '.exe'"*, and the episode never arrives. Remove from queue with blocklist + remove-from-client (`DELETE /api/v3/queue/bulk?removeFromClient=true&blocklist=true`), then search again.
 - **Talking to the qBittorrent API**: the WebUI user is **`admin`**, not `david` (there is no `WebUI\Username` key in `qBittorrent.conf`, so it uses the default). Password is `QBITTORRENT_PASSWORD` in `.env`. On v5.2.3 `POST /api/v2/auth/login` answers **HTTP 204 with an empty body** on success — older versions returned the literal `Ok.`, so any script asserting `body == "Ok."` reports a false failure and every later call then returns `403 Forbidden`. Check for the `QBT_SID_*` cookie, not the body. Works from the host and from inside the container:
   ```bash
   P=$(grep -E '^QBITTORRENT_PASSWORD=' ~/mediaserver/.env | cut -d= -f2-)
