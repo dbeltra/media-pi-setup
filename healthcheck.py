@@ -221,8 +221,28 @@ def check_dns():
     return {}
 
 
+def check_tailscale():
+    """Remote access. Invisible from the LAN, so nobody notices it dying.
+
+    2026-11-04 the node key expired and the box sat logged out for 10 days.
+    """
+    try:
+        st = json.loads(sh("tailscale", "status", "--json", timeout=20))
+    except ValueError:
+        return {"tailscale:down": "Tailscale is not responding — no remote access"}
+    if st.get("BackendState") != "Running":
+        return {"tailscale:down": f"Tailscale is {st.get('BackendState')} — no remote access (re-login needed?)"}
+    exp = st.get("Self", {}).get("KeyExpiry", "")  # absent when expiry is disabled
+    if exp and not exp.startswith("0001"):
+        days = (datetime.fromisoformat(exp.replace("Z", "+00:00")) - datetime.now(timezone.utc)).days
+        if days < 14:
+            return {"tailscale:expiry": f"Tailscale key expires in {days}d — disable key expiry in the admin console"}
+    return {}
+
+
 CHECKS = [check_containers, check_gluetun_health, check_vpn_leak,
-          check_media_mount, check_disks, check_arr_health, check_log_noise, check_dns]
+          check_media_mount, check_disks, check_arr_health, check_log_noise, check_dns,
+          check_tailscale]
 
 
 def ping_deadman():

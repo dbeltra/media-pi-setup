@@ -162,7 +162,7 @@ Two more notes: share limits apply only to **completed** torrents (an incomplete
 
 **Monitoring (`healthcheck.py`)**: runs every 15 min from cron, **alert-only — it never changes anything**. Pushes to [ntfy](https://ntfy.sh) on the topic in `.env` as `NTFY_TOPIC`; install the ntfy app and subscribe to that topic to receive alerts. Runs in ~3s, stdlib only, no extra containers.
 
-Seven checks, each chosen because it caught something that had been failing silently:
+Eight checks, each chosen because it caught something that had been failing silently:
 
 | Check | Why |
 |---|---|
@@ -174,6 +174,7 @@ Seven checks, each chosen because it caught something that had been failing sile
 | Radarr/Sonarr/Prowlarr `/health` | the *arr apps already do the analysis — this just forwards it. Covers indexers, download clients, root folders. `IndexerStatusCheck` (short-term backoff) is ignored — it flapped several times a day; `IndexerLongTermStatusCheck` (>6h) still alerts |
 | Repeated error log lines | ≥20 identical error lines/hour in any container. Generic, so it catches loops nobody predicted — the Radarr import loop ran ~60/hour for 40 days unnoticed |
 | Pi-hole resolving **and** blocking | Pi-hole is the resolver for the whole LAN, so "container up" is not enough: one that answers but resolves nothing takes the house offline, and one that resolves but stopped blocking fails silently |
+| Tailscale `Running` + key expiry <14d | invisible from the LAN — 2026-11-04 the node key expired and remote access was dead for 10 days unnoticed. Fix: `sudo tailscale up --hostname=raspberrypi`, approve, then **Disable key expiry** on the machine in the admin console |
 
 **Dead-man's switch**: everything above runs *on* the server, so a box that goes dark sends nothing — and silence is indistinguishable from health. Set `HEALTHCHECK_PING_URL` in `.env` to a [healthchecks.io](https://healthchecks.io) ping URL; the script pokes it after every completed run and the watchdog alerts when the pings stop. Optional — leave it empty to disable.
 
