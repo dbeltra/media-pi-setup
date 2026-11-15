@@ -118,7 +118,7 @@ The image is **pinned to `qmcgaw/gluetun:v3.41.3`**, not `latest`. The 4am cron 
 - To blocklist a bad release so it is never re-grabbed: find its `grabbed` event in `GET /api/v3/history`, then `POST /api/v3/history/failed/{id}`. This marks it failed and adds it to `/api/v3/blocklist`; the movie stays monitored and Radarr searches again for something else.
 - Custom format `Blocklist` (score 0): contains `x265`, `HEVC`, `10.?bit` — no longer penalized since Dell has QSV HW transcoding
 - Custom format `Preferred` (score +500): prefers `x264`, `H\.264` — still preferred for Google TV direct play
-- 4K and remux disabled entirely in Quality Definitions
+- 4K and remux are not allowed in Radarr profile 6. Until 2026-11-14 profile 6 still had `Remux-1080p` allowed, despite this line claiming otherwise. That is how 18–29G remuxes of Deadstream, Animale, MaXXXine and Flow got in, plus a stalled Flux Gourmet remux. Disallowing it does **not** make Radarr replace the existing remux files (profile upgrades are off, and nothing showed up in `wanted/cutoff`).
 
 **Subtitles**: Bazarr handles everything. Jellyfin's built-in subtitle download is disabled. OpenSubtitles plugin uninstalled. Language profile **"English + Spanish"** (profileId 1), cutoff `null` (wants both, never early-satisfied), series `minimum_score` 80 / movie 70.
 
