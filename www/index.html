@@ -341,9 +341,9 @@ async function loadQbt() {
     if (!r.ok) throw new Error('qbt ' + r.status);
     const torrents = await r.json();
 
-    const active = torrents.filter(t =>
-      !['pausedUP','stalledUP'].includes(t.state) || t.dlspeed > 0
-    );
+    // ponytail: anything not fully downloaded = downloading, queued, stalled or errored.
+    // Seeding torrents (queuedUP, stoppedUP, uploading…) are finished, so they're hidden.
+    const active = torrents.filter(t => t.progress < 1);
 
     if (!active.length) { wrap.innerHTML = '<div class="empty">no active downloads</div>'; return; }
 
