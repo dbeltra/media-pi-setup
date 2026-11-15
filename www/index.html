@@ -107,6 +107,9 @@ header {
 .stat-value { font-family: 'DM Mono', monospace; font-size: 1.35rem; font-weight: 500; color: var(--text); line-height: 1; }
 .stat-value.accent { color: var(--accent); }
 .stat-value.muted { color: var(--muted2); font-size: 1rem; }
+/* disk tiles: half a row each when the grid has 6 columns, a full row when it has fewer */
+.stat.wide { grid-column: 1 / -1; }
+@media (min-width: 1032px) { .stat.wide { grid-column: span 3; } }
 
 /* ── Tables ── */
 .downloads-table { width: 100%; border-collapse: collapse; border: 0.5px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 0.82rem; }
@@ -207,8 +210,8 @@ footer { max-width: 1100px; margin: 3rem auto 0; font-size: 0.7rem; color: var(-
       <div class="stat"><div class="stat-label">missing episodes</div><div class="stat-value" id="sonarr-missing">—</div></div>
       <div class="stat"><div class="stat-label">missing movies</div><div class="stat-value" id="radarr-missing">—</div></div>
       <div class="stat"><div class="stat-label">subtitles wanted</div><div class="stat-value" id="bazarr-wanted">—</div></div>
-      <div class="stat"><div class="stat-label">media disk</div><div class="stat-value" id="disk-media">—</div><div class="stat-label" id="disk-media-free"></div></div>
-      <div class="stat"><div class="stat-label">system disk (downloads)</div><div class="stat-value" id="disk-root">—</div><div class="stat-label" id="disk-root-free"></div></div>
+      <div class="stat wide"><div class="stat-label">media disk</div><div class="stat-value" id="disk-media">—</div><div class="stat-label" id="disk-media-free"></div></div>
+      <div class="stat wide"><div class="stat-label">system disk (downloads)</div><div class="stat-value" id="disk-root">—</div><div class="stat-label" id="disk-root-free"></div></div>
     </div>
   </div>
 
