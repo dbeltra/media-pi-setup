@@ -207,6 +207,8 @@ footer { max-width: 1100px; margin: 3rem auto 0; font-size: 0.7rem; color: var(-
       <div class="stat"><div class="stat-label">missing episodes</div><div class="stat-value" id="sonarr-missing">—</div></div>
       <div class="stat"><div class="stat-label">missing movies</div><div class="stat-value" id="radarr-missing">—</div></div>
       <div class="stat"><div class="stat-label">subtitles wanted</div><div class="stat-value" id="bazarr-wanted">—</div></div>
+      <div class="stat"><div class="stat-label">media disk</div><div class="stat-value" id="disk-media">—</div><div class="stat-label" id="disk-media-free"></div></div>
+      <div class="stat"><div class="stat-label">system disk (downloads)</div><div class="stat-value" id="disk-root">—</div><div class="stat-label" id="disk-root-free"></div></div>
     </div>
   </div>
 
@@ -518,6 +520,22 @@ async function loadBazarr() {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
+// Disk usage via Radarr, which sees both disks: /data = media HDD, /data/downloads = system NVMe.
+// Thresholds match healthcheck.py (media 85%, root 80%).
+async function loadDisks() {
+  const { url, apiKey } = CFG.services.radarr;
+  const disks = await (await fetch(`${url}/api/v3/diskspace`, { headers: arrHeaders(apiKey) })).json();
+  for (const [path, id, alertAt] of [['/data', 'disk-media', 85], ['/data/downloads', 'disk-root', 80]]) {
+    const d = disks.find(x => x.path === path);
+    if (!d) continue;
+    const pct = Math.round(100 * (1 - d.freeSpace / d.totalSpace));
+    const fill = pct >= alertAt ? 'error' : pct >= alertAt - 10 ? 'stalled' : '';
+    document.getElementById(id).innerHTML =
+      `<span class="progress-bar"><span class="progress-fill ${fill}" style="width:${pct}%"></span></span>${pct}%`;
+    document.getElementById(id + '-free').textContent = `${fmtBytes(d.freeSpace)} free of ${fmtBytes(d.totalSpace)}`;
+  }
+}
+
 async function loadAll() {
   const btn = document.getElementById('refresh-btn');
   btn.textContent = '↻ loading';
@@ -535,7 +553,7 @@ async function loadAll() {
 
   await Promise.allSettled([
     loadPihole(), loadQbt(), loadJellyfin(),
-    loadSonarr(), loadRadarr(), loadProwlarr(), loadBazarr(),
+    loadSonarr(), loadRadarr(), loadProwlarr(), loadBazarr(), loadDisks(),
   ]);
 
   btn.textContent = '↻ refresh';
