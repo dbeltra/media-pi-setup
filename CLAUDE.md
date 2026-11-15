@@ -97,10 +97,10 @@ All services accessible via MagicDNS hostname from any Tailscale device. See `CL
 0 4 * * * cd $HOME/mediaserver && docker compose pull && docker compose up -d
 0 4 * * 0 cd $HOME/mediaserver && docker compose restart gluetun && sleep 30 && docker compose restart qbittorrent
 30 */6 * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/translate-missing-es.py >> $HOME/mediaserver/logs/translate-es.log 2>&1
-*/15 * * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/healthcheck.py >> $HOME/mediaserver/logs/healthcheck-cron.log 2>&1
+10-59/15 * * * * cd $HOME/mediaserver && /usr/bin/python3 $HOME/mediaserver/healthcheck.py >> $HOME/mediaserver/logs/healthcheck-cron.log 2>&1
 ```
 
-Health scan every 15 min (see **Monitoring** below). Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads. Every 6h, auto-translate any missing Spanish subtitles from English via Gemini (see **Subtitles** below).
+Health scan every 15 min at :10/:25/:40/:55 — offset so it never runs during the 4am restarts, which caused a false `qbt_offline` alert every Sunday (see **Monitoring** below). Daily container update at 4am (replaces Watchtower). Weekly VPN refresh every Sunday at 4am to prevent stalled downloads. Every 6h, auto-translate any missing Spanish subtitles from English via Gemini (see **Subtitles** below).
 
 ---
 
